@@ -75,5 +75,12 @@ python .github/skills/map-story/script/story_map.py
 
 ## ✅ 小测试
 1. ***：峨眉山月半轮秋，影入平羌江水流
+   <img width="2518" height="1060" alt="人物一" src="https://github.com/user-attachments/assets/1af7cda1-5fe2-485c-8595-8cd2b8442e65" />
 2. ***：问余平生事业，黄州惠州儋州
+   <img width="2578" height="1238" alt="人物二" src="https://github.com/user-attachments/assets/58a4f8b8-2526-4109-aa5a-f7e6f5b79857" />
 3. ***：关东有义士，兴兵讨群凶
+   <img width="2608" height="1270" alt="人物三" src="https://github.com/user-attachments/assets/6f4b8c12-cba8-4fd3-be64-749cd9b19463" />
+
+
+
+   
