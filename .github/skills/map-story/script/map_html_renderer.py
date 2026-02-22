@@ -92,13 +92,40 @@ body {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
   white-space: nowrap;
 }
+.export-bar {
+  position: fixed;
+  top: 14px;
+  right: 16px;
+  display: flex;
+  gap: 8px;
+  z-index: 9999;
+}
+.export-btn {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(200, 180, 150, 0.5);
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #7c2d12;
+  cursor: pointer;
+}
+.export-btn:hover {
+  background: rgba(255, 255, 255, 0.98);
+}
 </style>
 </head>
 <body class="p-4 md:p-8">
+<div class="export-bar">
+  <button class="export-btn" data-export="geojson">GeoJSON</button>
+  <button class="export-btn" data-export="csv">CSV</button>
+  <button class="export-btn" data-export="markdown">Markdown</button>
+  <button class="export-btn" data-export="share">分享链接</button>
+</div>
 <div id="root"></div>
 <script type="text/babel" data-presets="env,react">
 const { useState, useEffect, useRef, useMemo } = React;
 const data = __DATA__;
+window.__EXPORT_DATA__ = data;
 const locations = data.locations || [];
 const mapStyle = data.mapStyle || {};
 const markerStyles = mapStyle.markers || {};
@@ -128,7 +155,7 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 };
 const extractYear = (text) => {
   if (!text) return null;
-  const match = String(text).match(/(\d{3,4})\s*年/);
+  const match = String(text).match(/(\\d{3,4})\\s*年/);
   return match ? parseInt(match[1], 10) : null;
 };
 const App = () => {
@@ -531,6 +558,273 @@ const App = () => {
 };
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<App />);
+const downloadText = (filename, content, type) => {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+};
+const buildGeoJSON = (payload) => {
+  const person = payload.person || {};
+  const locations = payload.locations || [];
+  const features = locations.map(loc => ({
+    type: 'Feature',
+    geometry: { type: 'Point', coordinates: [loc.lng, loc.lat] },
+    properties: {
+      person: person.name || '',
+      name: loc.name || '',
+      type: loc.type || '',
+      time: loc.time || '',
+      modernName: loc.modernName || '',
+      ancientName: loc.ancientName || ''
+    }
+  }));
+  if (locations.length > 1) {
+    features.push({
+      type: 'Feature',
+      geometry: {
+        type: 'LineString',
+        coordinates: locations.map(loc => [loc.lng, loc.lat])
+      },
+      properties: { person: person.name || '', name: '轨迹' }
+    });
+  }
+  return { type: 'FeatureCollection', features };
+};
+const csvEscape = (value) => `"${String(value || '').replace(/"/g, '""')}"`;
+const buildCSV = (payload) => {
+  const person = payload.person || {};
+  const locations = payload.locations || [];
+  const header = ['person','name','lat','lng','type','time','modernName','ancientName'];
+  const rows = locations.map(loc => [
+    person.name || '',
+    loc.name || '',
+    loc.lat || '',
+    loc.lng || '',
+    loc.type || '',
+    loc.time || '',
+    loc.modernName || '',
+    loc.ancientName || ''
+  ]);
+  return [header.join(','), ...rows.map(r => r.map(csvEscape).join(','))].join('\\n');
+};
+const setupExports = () => {
+  document.querySelectorAll('[data-export]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const type = btn.getAttribute('data-export');
+      const payload = window.__EXPORT_DATA__ || {};
+      if (type === 'geojson') {
+        const geo = buildGeoJSON(payload);
+        downloadText(`${payload.person?.name || 'map'}.geojson`, JSON.stringify(geo, null, 2), 'application/json');
+      } else if (type === 'csv') {
+        const csv = buildCSV(payload);
+        downloadText(`${payload.person?.name || 'map'}.csv`, csv, 'text/csv');
+      } else if (type === 'markdown') {
+        const md = payload.markdown || '';
+        if (!md) {
+          alert('Markdown 导出不可用');
+          return;
+        }
+        downloadText(`${payload.person?.name || 'map'}.md`, md, 'text/markdown');
+      } else if (type === 'share') {
+        const link = location.href;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(link);
+        } else {
+          prompt('复制链接', link);
+        }
+      }
+    });
+  });
+};
+setTimeout(setupExports, 0);
+</script>
+</body>
+</html>"""
+    return html.replace("__TITLE__", title).replace("__DATA__", payload)
+
+
+def render_multi_html(data: Dict[str, object]) -> str:
+    payload = json.dumps(data, ensure_ascii=False).replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
+    title = data.get("title") or "多人物合并视图"
+    html = """<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>__TITLE__</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" onerror="if(!this.dataset.f){this.dataset.f='1';this.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';}else if(this.dataset.f==='1'){this.dataset.f='2';this.href='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css';}" />
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" onerror="if(!this.dataset.f){this.dataset.f='1';this.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';}else if(this.dataset.f==='1'){this.dataset.f='2';this.src='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js';}"></script>
+<style>
+body{font-family:'Noto Serif SC',serif;background-color:#fdf6e3;color:#2c3e50;}
+#map{height:80vh;width:100%;border-radius:12px;box-shadow:0 6px 12px rgba(0,0,0,0.12);}
+.legend{position:fixed;left:16px;top:16px;background:rgba(255,255,255,0.9);border:1px solid rgba(200,180,150,0.5);border-radius:10px;padding:10px 12px;z-index:9999;}
+.legend-item{display:flex;align-items:center;gap:8px;font-size:12px;margin-top:6px;}
+.legend-color{width:10px;height:10px;border-radius:999px;}
+.export-bar{position:fixed;top:14px;right:16px;display:flex;gap:8px;z-index:9999;}
+.export-btn{background:rgba(255,255,255,0.88);border:1px solid rgba(200,180,150,0.5);padding:6px 10px;border-radius:999px;font-size:12px;color:#7c2d12;cursor:pointer;}
+.export-btn:hover{background:rgba(255,255,255,0.98);}
+</style>
+</head>
+<body class="p-4 md:p-8">
+<div class="export-bar">
+  <button class="export-btn" data-export="geojson">GeoJSON</button>
+  <button class="export-btn" data-export="csv">CSV</button>
+  <button class="export-btn" data-export="share">分享链接</button>
+</div>
+<div id="legend" class="legend"></div>
+<div id="map"></div>
+<script>
+const data = __DATA__;
+window.__EXPORT_DATA__ = data;
+const people = data.people || [];
+const map = L.map('map', { zoomControl: false }).setView([35, 105], 4);
+L.control.zoom({ position: 'topright' }).addTo(map);
+const tileSources = [
+  { url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', options: { attribution: '&copy; OpenStreetMap contributors' } },
+  { url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', options: { attribution: '&copy; OpenStreetMap contributors' } },
+  { url: 'https://{s}.tile.openstreetmap.de/{z}/{x}/{y}.png', options: { attribution: '&copy; OpenStreetMap contributors' } },
+  { url: 'https://webrd{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}', options: { subdomains: ['0','1','2','3'], attribution: '&copy; 高德地图' } },
+  { url: 'https://webst{s}.is.autonavi.com/appmaptile?style=7&x={x}&y={y}&z={z}', options: { subdomains: ['0','1','2','3'], attribution: '&copy; 高德地图' } }
+];
+const addTileLayer = (mapInstance) => {
+  let idx = 0;
+  let errorCount = 0;
+  let layer = L.tileLayer(tileSources[idx].url, tileSources[idx].options);
+  const handleError = () => {
+    errorCount += 1;
+    if (errorCount >= 8) {
+      idx += 1;
+      if (idx >= tileSources.length) {
+        return;
+      }
+      mapInstance.removeLayer(layer);
+      layer = L.tileLayer(tileSources[idx].url, tileSources[idx].options);
+      layer.addTo(mapInstance);
+      errorCount = 0;
+      layer.on('tileerror', handleError);
+    }
+  };
+  layer.on('tileerror', handleError);
+  layer.addTo(mapInstance);
+};
+addTileLayer(map);
+const bounds = [];
+people.forEach((p) => {
+  const color = p.color || '#1e40af';
+  const locations = p.locations || [];
+  const line = locations.map(loc => [loc.lat, loc.lng]);
+  if (line.length > 1) {
+    L.polyline(line, { color, weight: 3, opacity: 0.7 }).addTo(map);
+  }
+  locations.forEach((loc) => {
+    bounds.push([loc.lat, loc.lng]);
+    L.circleMarker([loc.lat, loc.lng], {
+      radius: 8,
+      color,
+      fillColor: color,
+      fillOpacity: 0.4,
+      weight: 2
+    }).addTo(map).bindPopup(`${p.person?.name || ''} · ${loc.name || ''}`);
+  });
+});
+if (bounds.length > 0) {
+  map.fitBounds(bounds, { padding: [48, 48], maxZoom: 6 });
+}
+const legend = document.getElementById('legend');
+const overlap = data.overlaps || [];
+const overlapText = overlap.length ? overlap.map(o => o.name).join('、') : '暂无';
+legend.innerHTML = `<div class="text-sm font-semibold">人物轨迹</div>` + people.map(p => `
+  <div class="legend-item">
+    <span class="legend-color" style="background:${p.color || '#1e40af'}"></span>
+    <span>${p.person?.name || ''}</span>
+  </div>
+`).join('') + `<div class="text-[11px] text-slate-500 mt-2">交集地点：${overlapText}</div>`;
+const downloadText = (filename, content, type) => {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+};
+const buildGeoJSON = (payload) => {
+  const features = [];
+  (payload.people || []).forEach(p => {
+    const locations = p.locations || [];
+    locations.forEach(loc => {
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [loc.lng, loc.lat] },
+        properties: {
+          person: p.person?.name || '',
+          name: loc.name || '',
+          type: loc.type || '',
+          time: loc.time || '',
+          modernName: loc.modernName || '',
+          ancientName: loc.ancientName || ''
+        }
+      });
+    });
+    if (locations.length > 1) {
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: locations.map(loc => [loc.lng, loc.lat]) },
+        properties: { person: p.person?.name || '', name: '轨迹' }
+      });
+    }
+  });
+  return { type: 'FeatureCollection', features };
+};
+const csvEscape = (value) => `"${String(value || '').replace(/"/g, '""')}"`;
+const buildCSV = (payload) => {
+  const header = ['person','name','lat','lng','type','time','modernName','ancientName'];
+  const rows = [];
+  (payload.people || []).forEach(p => {
+    (p.locations || []).forEach(loc => {
+      rows.push([
+        p.person?.name || '',
+        loc.name || '',
+        loc.lat || '',
+        loc.lng || '',
+        loc.type || '',
+        loc.time || '',
+        loc.modernName || '',
+        loc.ancientName || ''
+      ]);
+    });
+  });
+  return [header.join(','), ...rows.map(r => r.map(csvEscape).join(','))].join('\\n');
+};
+document.querySelectorAll('[data-export]').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const type = btn.getAttribute('data-export');
+    const payload = window.__EXPORT_DATA__ || {};
+    if (type === 'geojson') {
+      const geo = buildGeoJSON(payload);
+      downloadText(`storymap.geojson`, JSON.stringify(geo, null, 2), 'application/json');
+    } else if (type === 'csv') {
+      const csv = buildCSV(payload);
+      downloadText(`storymap.csv`, csv, 'text/csv');
+    } else if (type === 'share') {
+      const link = location.href;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(link);
+      } else {
+        prompt('复制链接', link);
+      }
+    }
+  });
+});
 </script>
 </body>
 </html>"""

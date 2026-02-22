@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>杜甫的人生足迹地图</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" onerror="if(!this.dataset.f){this.dataset.f='1';this.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';}else if(this.dataset.f==='1'){this.dataset.f='2';this.href='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css';}" />
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" onerror="if(!this.dataset.f){this.dataset.f='1';this.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';}else if(this.dataset.f==='1'){this.dataset.f='2';this.src='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js';}"></script>
+<script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js" onerror="if(!this.dataset.f){this.dataset.f='1';this.src='https://unpkg.com/react@18/umd/react.production.min.js';}else if(this.dataset.f==='1'){this.dataset.f='2';this.src='https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js';}"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js" onerror="if(!this.dataset.f){this.dataset.f='1';this.src='https://unpkg.com/react-dom@18/umd/react-dom.production.min.js';}else if(this.dataset.f==='1'){this.dataset.f='2';this.src='https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js';}"></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.24.7/babel.min.js" onerror="if(!this.dataset.f){this.dataset.f='1';this.src='https://unpkg.com/@babel/standalone@7.24.7/babel.min.js';}else if(this.dataset.f==='1'){this.dataset.f='2';this.src='https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js';}"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<style>
+body {
+  font-family: 'Noto Serif SC', serif;
+  background-color: #fdf6e3;
+  color: #2c3e50;
+}
+#map {
+  height: 620px;
+  width: 100%;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  z-index: 1;
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #c0392b;
+  border-radius: 10px;
+}
+.glass-panel {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(200, 180, 150, 0.3);
+}
+.desc-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.age-marker {
+  background: transparent;
+  border: none;
+}
+.age-badge {
+  background: rgba(255, 255, 255, 0.65);
+  color: #7c2d12;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  border: 1px solid rgba(200, 180, 150, 0.5);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  white-space: nowrap;
+}
+.export-bar {
+  position: fixed;
+  top: 14px;
+  right: 16px;
+  display: flex;
+  gap: 8px;
+  z-index: 9999;
+}
+.export-btn {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(200, 180, 150, 0.5);
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #7c2d12;
+  cursor: pointer;
+}
+.export-btn:hover {
+  background: rgba(255, 255, 255, 0.98);
+}
+</style>
+</head>
+<body class="p-4 md:p-8">
+<div class="export-bar">
+  <button class="export-btn" data-export="geojson">GeoJSON</button>
+  <button class="export-btn" data-export="csv">CSV</button>
+  <button class="export-btn" data-export="png">PNG</button>
+  <button class="export-btn" data-export="share">分享链接</button>
+</div>
+<div id="root"></div>
+<script type="text/babel" data-presets="env,react">
+const { useState, useEffect, useRef, useMemo } = React;
+const data = {"person": {"name": "杜甫", "title": "诗圣", "description": "杜甫生于盛唐，早年漫游吴越齐赵，胸怀大志。后赴长安求仕，困守十年，目睹朝政腐败与社会危机。安史之乱爆发后，他颠沛流离，亲历战乱，其诗歌深刻记录了时代动荡与民生疾苦，风格转向沉郁。晚年漂泊西南，寓居成都草堂，后出峡辗转于荆楚湖湘，最终病逝于舟中。他一生仕途失意，却将个人命运与国家兴衰紧密相连，以诗歌真实反映了唐朝由盛转衰的历史过程，其作品兼具极高的艺术价值与历史价值。", "quote": "《春望》：国破山河在，城春草木深", "dynasty": "唐朝（盛唐转中唐）", "birthplace": "河南府巩县（今河南省巩义市）", "avatar": "", "birth": {"date": "712年", "location": "河南府巩县（今河南省巩义市）", "lat": 34.749075, "lng": 113.0160586}, "death": {"date": "770年", "location": "潭州往岳阳的舟中（今湖南省岳阳市平江县境内，一说耒阳）", "lat": null, "lng": null}, "lifespan": "59岁"}, "locations": [{"name": "巩县", "ancientName": "巩县", "modernName": "河南府巩县（今河南省巩义市）", "lat": 34.749075, "lng": 113.0160586, "type": "birth", "event": "杜甫在此出生并度过童年，其家族有“奉儒守官”的传统，对他一生思想影响深远。", "time": "公元712年", "duration": "童年时期", "significance": "人生起点，儒家思想的启蒙地。", "works": [], "quoteLines": []}, {"name": "洛阳", "ancientName": "洛阳", "modernName": "东都洛阳（今河南省洛阳市）", "lat": 34.6196539, "lng": 112.4477046, "type": "normal", "event": "青年时常游历洛阳，在此结识李白、高适等文人，开启诗坛交流。安史之乱中，洛阳沦陷，给他带来巨大冲击。", "time": "约公元731-735年及之后多次往返", "duration": "青年时期漫游、寓居", "significance": "文化启蒙与交友的重要舞台，也是目睹国家动荡的开始。", "works": [], "quoteLines": ["《春望》：国破山河在，城春草木深"]}, {"name": "长安", "ancientName": "长安", "modernName": "京师长安（今陕西省西安市）", "lat": 34.285821, "lng": 108.9479051, "type": "normal", "event": "为求仕进，困居长安十年，参加科举失利，献赋投赠，终得微官（右卫率府胄曹参军）。期间深刻体察到上层社会的奢靡与底层人民的困苦，诗歌创作走向成熟。", "time": "公元746-755年（主要寓居期）", "duration": "约十年", "significance": "仕途失意与思想深化之地，现实主义诗风形成的关键时期。", "works": [], "quoteLines": ["《自京赴奉先县咏怀五百字》：朱门酒肉臭，路有冻死骨"]}, {"name": "鄜州", "ancientName": "鄜州", "modernName": "鄜州（今陕西省富县）", "lat": 35.988333, "lng": 109.137222, "type": "normal", "event": "安史之乱爆发后，杜甫将家小安置于鄜州羌村，自己只身北上投奔肃宗，中途被叛军俘至长安。", "time": "公元756年", "duration": "短暂安置家小", "significance": "战乱中家庭离散的见证地，牵挂与忧思的源头。", "works": [], "quoteLines": ["《月夜》：今夜鄜州月，闺中只独看"]}, {"name": "凤翔", "ancientName": "凤翔", "modernName": "凤翔（今陕西省凤翔县）", "lat": 34.56, "lng": 107.420556, "type": "normal", "event": "从长安逃出后，冒险抵达凤翔行在，谒见唐肃宗，被授左拾遗。不久因营救房琯触怒肃宗，被疏远。", "time": "公元757年", "duration": "数月", "significance": "短暂担任朝廷谏官，实现政治抱负的顶点，也是仕途转折点。", "works": [], "quoteLines": ["《述怀》：麻鞋见天子，衣袖露两肘"]}, {"name": "秦州、同谷", "ancientName": "秦州、同谷", "modernName": "秦州（今甘肃省天水市）、同谷（今甘肃省成县）", "lat": 34.5797531, "lng": 105.7062921, "type": "normal", "event": "因政治失望及饥荒，弃官携家西行，流离于秦州、同谷。生活极度困苦，靠拾橡栗、挖黄独为生。", "time": "公元759年", "duration": "各数月", "significance": "人生中最艰难的逃难与求生阶段，诗歌更深入地描绘民间苦难。", "works": [], "quoteLines": ["《乾元中寓居同谷县作歌七首》：岁拾橡栗随狙公，天寒日暮山谷里"]}, {"name": "成都", "ancientName": "成都", "modernName": "成都（今四川省成都市）", "lat": 30.659867, "lng": 104.063315, "type": "normal", "event": "在友人严武等人帮助下，于成都西郊浣花溪畔营建草堂，度过一段相对安定的生活。曾任检校工部员外郎（故称“杜工部”）。严武死后，失去依靠，离开成都。", "time": "公元759年底-765年", "duration": "约五年半", "significance": "漂泊生涯中难得的安定时期，创作了大量田园山水诗。", "works": [], "quoteLines": ["《茅屋为秋风所破歌》：安得广厦千万间，大庇天下寒士俱欢颜", "《春夜喜雨》：好雨知时节，当春乃发生"]}, {"name": "夔州", "ancientName": "夔州", "modernName": "夔州（今重庆市奉节县）", "lat": 30.9645818, "lng": 109.3989566, "type": "normal", "event": "沿江东下，滞留夔州。生活仍困苦，但创作达到巅峰，数量极丰，风格更加沉郁顿挫、律法精严。", "time": "公元766-768年", "duration": "约两年", "significance": "诗歌艺术集大成的时期，大量创作回忆生平、总结历史的宏篇巨制。", "works": [], "quoteLines": ["《登高》：无边落木萧萧下，不尽长江滚滚来", "《秋兴八首》：丛菊两开他日泪，孤舟一系故园心"]}, {"name": "潭州（长沙）", "ancientName": "潭州（长沙）", "modernName": "潭州（今湖南省长沙市）", "lat": 28.1987538, "lng": 112.9708685, "type": "normal", "event": "出峡后漂泊至潭州，以舟为家，靠友接济。在此重逢著名乐工李龟年，感慨万千。", "time": "公元769-770年", "duration": "约一年", "significance": "人生最后漂泊地之一，暮年孤苦与家国忧思交织。", "works": [], "quoteLines": ["《江南逢李龟年》：正是江南好风景，落花时节又逢君"]}], "mapStyle": {"pathColor": "#1e40af", "markers": {"normal": {"iconUrl": "https://a.amap.com/jsapi_demos/static/demo-center/icons/poi-marker-default.png", "color": "#3498db"}, "birth": {"iconUrl": "https://a.amap.com/jsapi_demos/static/demo-center/icons/poi-marker-green.png", "color": "#2ecc71"}, "death": {"iconUrl": "https://a.amap.com/jsapi_demos/static/demo-center/icons/poi-marker-red.png", "color": "#e74c3c"}}}};
+window.__EXPORT_DATA__ = data;
+const locations = data.locations || [];
+const mapStyle = data.mapStyle || {};
+const markerStyles = mapStyle.markers || {};
+const defaultMarkerStyles = {
+  normal: {
+    iconUrl: 'https://a.amap.com/jsapi_demos/static/demo-center/icons/poi-marker-default.png',
+    color: '#3498db'
+  },
+  birth: {
+    iconUrl: 'https://a.amap.com/jsapi_demos/static/demo-center/icons/poi-marker-green.png',
+    color: '#2ecc71'
+  },
+  death: {
+    iconUrl: 'https://a.amap.com/jsapi_demos/static/demo-center/icons/poi-marker-red.png',
+    color: '#e74c3c'
+  }
+};
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+const extractYear = (text) => {
+  if (!text) return null;
+  const match = String(text).match(/(\d{3,4})\s*年/);
+  return match ? parseInt(match[1], 10) : null;
+};
+const App = () => {
+  const [selectedLoc, setSelectedLoc] = useState(locations[0] || null);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [showFullDesc, setShowFullDesc] = useState(false);
+  const [splitPct, setSplitPct] = useState(30);
+  const mapRef = useRef(null);
+  const splitRef = useRef(null);
+  const draggingRef = useRef(false);
+  const totalEvents = locations.length;
+  const avatarUrl = data.person?.avatar || '';
+  const description = data.person?.description || '';
+  const quoteText = data.person?.quote || data.person?.title || '';
+  const descSegments = useMemo(() => {
+    if (!description) return [];
+    const parts = description.split(/([。！？])/);
+    const segs = [];
+    for (let i = 0; i < parts.length; i += 2) {
+      const seg = `${parts[i] || ''}${parts[i + 1] || ''}`.trim();
+      if (seg) segs.push(seg);
+    }
+    return segs;
+  }, [description]);
+  const isLongDesc = useMemo(() => description.length > 120 || descSegments.length > 3, [description, descSegments]);
+  const stats = useMemo(() => {
+    let totalDist = 0;
+    for (let i = 0; i < locations.length - 1; i++) {
+      totalDist += calculateDistance(
+        locations[i].lat, locations[i].lng,
+        locations[i+1].lat, locations[i+1].lng
+      );
+    }
+    const regions = new Set(locations.map(l => (l.modernName || l.name || '').split(/[\s/]/)[0]).filter(Boolean));
+    const years = parseInt((data.person?.lifespan || '').replace(/\D/g, ''), 10) || 0;
+    return {
+      distance: Math.round(totalDist),
+      regions: regions.size,
+      events: locations.length,
+      years: years
+    };
+  }, []);
+  const birthDate = data.person?.birth?.date || '';
+  const deathDate = data.person?.death?.date || '';
+  const lifeDates = birthDate || deathDate
+    ? `${birthDate}${birthDate && deathDate ? '-' : ''}${deathDate}`
+    : (data.person?.lifespan || '');
+  const birthYear = useMemo(() => extractYear(birthDate), [birthDate]);
+  const getAgeText = (loc) => {
+    const year = extractYear(loc.time || '');
+    if (!birthYear || !year) return '';
+    const age = year - birthYear + 1;
+    if (!Number.isFinite(age) || age <= 0 || age > 150) return '';
+    return `${age}岁`;
+  };
+  const renderDescription = () => {
+    if (!description) return null;
+    return (
+      <div className="mb-4">
+        <div className={`text-gray-600 leading-relaxed ${showFullDesc ? '' : 'desc-clamp'}`}>
+          {descSegments.map((seg, idx) => (
+            <span key={idx} className="block">{seg}</span>
+          ))}
+        </div>
+        {isLongDesc ? (
+          <button
+            onClick={() => setShowFullDesc(!showFullDesc)}
+            className="text-xs text-[#c0392b] mt-1"
+          >
+            {showFullDesc ? '收起' : '展开'}
+          </button>
+        ) : null}
+      </div>
+    );
+  };
+  const changeEvent = (nextIndex) => {
+    if (nextIndex < 0 || nextIndex >= totalEvents || nextIndex === activeIndex) return;
+    const nextLoc = locations[nextIndex] || null;
+    setActiveIndex(nextIndex);
+    setSelectedLoc(nextLoc);
+    if (mapRef.current && nextLoc) {
+      mapRef.current.setView([nextLoc.lat, nextLoc.lng], 7);
+    }
+  };
+  useEffect(() => {
+    if (!mapRef.current) {
+      const first = locations[0] || { lat: 35, lng: 105 };
+      const map = L.map('map', { zoomControl: false }).setView([first.lat, first.lng], locations.length ? 4 : 4);
+      L.control.zoom({ position: 'topright' }).addTo(map);
+      const tileSources = [
+        {
+          url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          options: { attribution: '&copy; OpenStreetMap contributors' }
+        },
+        {
+          url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+          options: { attribution: '&copy; OpenStreetMap contributors' }
+        },
+        {
+          url: 'https://{s}.tile.openstreetmap.de/{z}/{x}/{y}.png',
+          options: { attribution: '&copy; OpenStreetMap contributors' }
+        },
+        {
+          url: 'https://webrd{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}',
+          options: { subdomains: ['0', '1', '2', '3'], attribution: '&copy; 高德地图' }
+        },
+        {
+          url: 'https://webst{s}.is.autonavi.com/appmaptile?style=7&x={x}&y={y}&z={z}',
+          options: { subdomains: ['0', '1', '2', '3'], attribution: '&copy; 高德地图' }
+        }
+      ];
+      const addTileLayer = (mapInstance) => {
+        let idx = 0;
+        let errorCount = 0;
+        let layer = L.tileLayer(tileSources[idx].url, tileSources[idx].options);
+        const handleError = () => {
+          errorCount += 1;
+          if (errorCount >= 8) {
+            idx += 1;
+            if (idx >= tileSources.length) {
+              return;
+            }
+            mapInstance.removeLayer(layer);
+            layer = L.tileLayer(tileSources[idx].url, tileSources[idx].options);
+            layer.addTo(mapInstance);
+            errorCount = 0;
+            layer.on('tileerror', handleError);
+          }
+        };
+        layer.on('tileerror', handleError);
+        layer.addTo(mapInstance);
+      };
+      addTileLayer(map);
+      const resolveMarkerStyle = (type) => {
+        if (markerStyles[type]) return markerStyles[type];
+        if (markerStyles.normal) return markerStyles.normal;
+        return defaultMarkerStyles[type] || defaultMarkerStyles.normal;
+      };
+      const markerIcon = (type) => {
+        const iconUrl = resolveMarkerStyle(type).iconUrl || defaultMarkerStyles.normal.iconUrl;
+        return L.icon({
+          iconUrl,
+          iconSize: [25, 34],
+          iconAnchor: [12, 34],
+          popupAnchor: [0, -30]
+        });
+      };
+      const pathCoords = locations.map(l => [l.lat, l.lng]);
+      for (let i = 0; i < pathCoords.length - 1; i++) {
+        const opacity = 0.25 + (i / pathCoords.length) * 0.6;
+        L.polyline([pathCoords[i], pathCoords[i+1]], {
+          color: mapStyle.pathColor || '#1e40af',
+          weight: 3,
+          opacity: opacity
+        }).addTo(map);
+      }
+      locations.forEach((loc, idx) => {
+        const style = resolveMarkerStyle(loc.type || 'normal');
+        L.circleMarker([loc.lat, loc.lng], {
+          radius: 10,
+          color: style.color || defaultMarkerStyles.normal.color,
+          fillColor: style.color || defaultMarkerStyles.normal.color,
+          fillOpacity: 0.35,
+          weight: 2
+        }).addTo(map);
+        const marker = L.marker([loc.lat, loc.lng], { icon: markerIcon(loc.type || 'normal') }).addTo(map);
+        marker.on('click', () => {
+          setSelectedLoc(loc);
+          setActiveIndex(idx);
+          map.setView([loc.lat, loc.lng], 7);
+        });
+        const ageText = getAgeText(loc);
+        if (ageText) {
+          const ageIcon = L.divIcon({
+            className: 'age-marker',
+            html: `<div class="age-badge">${ageText}</div>`,
+            iconSize: [44, 20],
+            iconAnchor: [22, 30]
+          });
+          L.marker([loc.lat, loc.lng], { icon: ageIcon, interactive: false }).addTo(map);
+        }
+      });
+      if (pathCoords.length > 1) {
+        const bounds = L.latLngBounds(pathCoords);
+        map.fitBounds(bounds, { padding: [48, 48], maxZoom: 6 });
+      } else if (pathCoords.length === 1) {
+        map.setView(pathCoords[0], 6);
+      }
+      mapRef.current = map;
+    }
+  }, []);
+  useEffect(() => {
+    const onMove = (e) => {
+      if (!draggingRef.current || !splitRef.current) return;
+      const rect = splitRef.current.getBoundingClientRect();
+      const next = ((e.clientX - rect.left) / rect.width) * 100;
+      if (!Number.isFinite(next)) return;
+      const clamped = Math.min(60, Math.max(20, next));
+      setSplitPct(clamped);
+    };
+    const onUp = () => {
+      draggingRef.current = false;
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, []);
+  const handleLocClick = (loc, idx) => {
+    setSelectedLoc(loc);
+    if (typeof idx === 'number') {
+      setActiveIndex(idx);
+    }
+    if (mapRef.current) {
+      mapRef.current.setView([loc.lat, loc.lng], 7);
+    }
+  };
+  return (
+    <div className="max-w-screen-2xl mx-auto space-y-6">
+      <header className="glass-panel p-6 rounded-xl shadow-sm border-l-8 border-[#c0392b] flex flex-col md:flex-row gap-6 items-center">
+        <div className="w-32 h-32 bg-[#e5e7eb] rounded-full flex items-center justify-center border-4 border-white shadow-inner overflow-hidden">
+          {avatarUrl ? (
+            <img src={avatarUrl} alt={data.person?.name || ''} className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-gray-600 text-2xl">{data.person?.name || ''}</span>
+          )}
+        </div>
+        <div className="flex-1 text-center md:text-left">
+          <h1 className="text-4xl font-bold">{data.person.name}</h1>
+          {quoteText ? (
+            <p className="text-xs text-gray-500 mt-1 mb-2">{quoteText}</p>
+          ) : null}
+          {renderDescription()}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div>
+              <p className="text-gray-400 text-sm">朝代</p>
+              <p className="font-bold">{data.person?.dynasty || ''}</p>
+            </div>
+            <div>
+              <p className="text-gray-400 text-sm">籍贯</p>
+              <p className="font-bold">{data.person?.birthplace || ''}</p>
+            </div>
+            <div>
+              <p className="text-gray-400 text-sm">生卒</p>
+              <p className="font-bold">{lifeDates}</p>
+            </div>
+            <div>
+              <p className="text-gray-400 text-sm">享年</p>
+              <p className="font-bold">{data.person?.lifespan || ''}</p>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div className="space-y-6">
+        <div ref={splitRef} className="flex flex-col lg:flex-row gap-6 items-stretch">
+          <div
+            className="glass-panel rounded-xl overflow-hidden flex flex-col h-[620px]"
+            style={{ flexBasis: `${splitPct}%`, flexGrow: 0 }}
+          >
+            <div className="p-4 bg-[#c0392b] text-white font-bold flex items-center justify-between">
+              <span>足迹时间轴</span>
+              <div className="flex items-center gap-2 text-xs">
+                <button
+                  onClick={() => changeEvent(activeIndex - 1)}
+                  disabled={activeIndex === 0}
+                  className="px-2 py-1 rounded bg-white/20 disabled:opacity-40"
+                >上一事件</button>
+                <span className="opacity-80">{totalEvents ? activeIndex + 1 : 0} / {totalEvents}</span>
+                <button
+                  onClick={() => changeEvent(activeIndex + 1)}
+                  disabled={activeIndex + 1 >= totalEvents}
+                  className="px-2 py-1 rounded bg-white/20 disabled:opacity-40"
+                >下一事件</button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3">
+              {locations.length ? (
+                locations.map((loc, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => handleLocClick(loc, idx)}
+                    className={`p-3 rounded-lg cursor-pointer transition-all border-l-4 ${
+                      idx === activeIndex
+                        ? 'bg-white shadow-md border-[#c0392b]'
+                        : 'bg-white/70 border-transparent hover:bg-white'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="font-bold text-sm">{loc.name}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
+                        {loc.time || '未知'}
+                      </span>
+                    </div>
+                    <div className="space-y-1 text-[11px] text-gray-500 mb-2">
+                      <div className="flex justify-between">
+                        <span>公元纪年</span>
+                        <span className="text-gray-700">{loc.time || '未知'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>停留时间</span>
+                        <span className="text-gray-700">{loc.duration || '未知'}</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500">{loc.event}</p>
+                  </div>
+                ))
+              ) : (
+                <div className="text-xs text-gray-400">暂无事件</div>
+              )}
+            </div>
+          </div>
+          <div
+            className="hidden lg:block w-2 rounded bg-[#c8b496]/50 hover:bg-[#c8b496] cursor-col-resize"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              draggingRef.current = true;
+            }}
+          ></div>
+          <div className="relative flex-1">
+            <div id="map"></div>
+            {selectedLoc && (
+              <div className="absolute top-4 left-4 z-[1000] w-72 glass-panel p-4 rounded-xl shadow-xl border-t-4 border-[#c0392b]">
+                <button
+                  onClick={() => setSelectedLoc(null)}
+                  className="absolute top-2 right-2 text-gray-400 hover:text-gray-600"
+                >✕</button>
+                <h3 className="text-xl font-bold text-[#c0392b] mb-1">{selectedLoc.name}</h3>
+                <p className="text-xs text-gray-400 mb-3">{selectedLoc.ancientName} → {selectedLoc.modernName}</p>
+                <div className="space-y-3 text-sm">
+                  <div>
+                    <p className="text-gray-400 text-[10px] uppercase font-bold">公元纪年</p>
+                    <p>{selectedLoc.time || '未知'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400 text-[10px] uppercase font-bold">停留时间</p>
+                    <p>{selectedLoc.duration || '未知'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400 text-[10px] uppercase font-bold">事迹描述</p>
+                    <p className="leading-relaxed">{selectedLoc.event}</p>
+                  </div>
+                  <div className="bg-[#fdf6e3] p-2 rounded border border-dashed border-[#c8b496]">
+                    <p className="text-[#c0392b] text-[10px] uppercase font-bold">历史意义</p>
+                    <p className="italic text-xs">{selectedLoc.significance}</p>
+                  </div>
+                  {selectedLoc.quoteLines?.length ? (
+                    <div>
+                      <p className="text-gray-400 text-[10px] uppercase font-bold">名篇名句</p>
+                      <ul className="space-y-1">
+                        {selectedLoc.quoteLines.map((q, idx) => (
+                          <li key={idx} className="text-xs text-gray-700">{q}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : selectedLoc.works?.length ? (
+                    <div>
+                      <p className="text-gray-400 text-[10px] uppercase font-bold">名篇名句</p>
+                      <ul className="list-disc pl-4 space-y-1">
+                        {selectedLoc.works.map((w, idx) => (
+                          <li key={idx} className="text-xs text-gray-700">《{w}》</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="glass-panel p-4 rounded-xl text-center">
+            <p className="text-2xl mb-1">🗺️</p>
+            <p className="text-xl font-bold">{stats.distance} <span className="text-xs font-normal">km</span></p>
+            <p className="text-[10px] text-gray-400 uppercase">总行程估算</p>
+          </div>
+          <div className="glass-panel p-4 rounded-xl text-center">
+            <p className="text-2xl mb-1">⏱️</p>
+            <p className="text-xl font-bold">{stats.years} <span className="text-xs font-normal">年</span></p>
+            <p className="text-[10px] text-gray-400 uppercase">生命跨度</p>
+          </div>
+          <div className="glass-panel p-4 rounded-xl text-center">
+            <p className="text-2xl mb-1">📍</p>
+            <p className="text-xl font-bold">{stats.regions} <span className="text-xs font-normal">个</span></p>
+            <p className="text-[10px] text-gray-400 uppercase">覆盖地区</p>
+          </div>
+          <div className="glass-panel p-4 rounded-xl text-center">
+            <p className="text-2xl mb-1">🌟</p>
+            <p className="text-xl font-bold">{stats.events} <span className="text-xs font-normal">件</span></p>
+            <p className="text-[10px] text-gray-400 uppercase">重要事迹</p>
+          </div>
+        </div>
+      </div>
+      <footer className="text-center text-gray-400 text-[10px] py-8 border-t border-gray-200">
+        <p>build by cuicheng</p>
+      </footer>
+    </div>
+  );
+};
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+const downloadText = (filename, content, type) => {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+};
+const buildGeoJSON = (payload) => {
+  const person = payload.person || {};
+  const locations = payload.locations || [];
+  const features = locations.map(loc => ({
+    type: 'Feature',
+    geometry: { type: 'Point', coordinates: [loc.lng, loc.lat] },
+    properties: {
+      person: person.name || '',
+      name: loc.name || '',
+      type: loc.type || '',
+      time: loc.time || '',
+      modernName: loc.modernName || '',
+      ancientName: loc.ancientName || ''
+    }
+  }));
+  if (locations.length > 1) {
+    features.push({
+      type: 'Feature',
+      geometry: {
+        type: 'LineString',
+        coordinates: locations.map(loc => [loc.lng, loc.lat])
+      },
+      properties: { person: person.name || '', name: '轨迹' }
+    });
+  }
+  return { type: 'FeatureCollection', features };
+};
+const csvEscape = (value) => `"${String(value || '').replace(/"/g, '""')}"`;
+const buildCSV = (payload) => {
+  const person = payload.person || {};
+  const locations = payload.locations || [];
+  const header = ['person','name','lat','lng','type','time','modernName','ancientName'];
+  const rows = locations.map(loc => [
+    person.name || '',
+    loc.name || '',
+    loc.lat || '',
+    loc.lng || '',
+    loc.type || '',
+    loc.time || '',
+    loc.modernName || '',
+    loc.ancientName || ''
+  ]);
+  return [header.join(','), ...rows.map(r => r.map(csvEscape).join(','))].join('\n');
+};
+const exportPNG = async () => {
+  const mapEl = document.getElementById('map');
+  if (!mapEl || !window.html2canvas) {
+    alert('PNG 导出不可用');
+    return;
+  }
+  const canvas = await window.html2canvas(mapEl, { useCORS: true, allowTaint: true });
+  const url = canvas.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${(window.__EXPORT_DATA__?.person?.name || 'map')}.png`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+};
+const setupExports = () => {
+  document.querySelectorAll('[data-export]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const type = btn.getAttribute('data-export');
+      const payload = window.__EXPORT_DATA__ || {};
+      if (type === 'geojson') {
+        const geo = buildGeoJSON(payload);
+        downloadText(`${payload.person?.name || 'map'}.geojson`, JSON.stringify(geo, null, 2), 'application/json');
+      } else if (type === 'csv') {
+        const csv = buildCSV(payload);
+        downloadText(`${payload.person?.name || 'map'}.csv`, csv, 'text/csv');
+      } else if (type === 'png') {
+        await exportPNG();
+      } else if (type === 'share') {
+        const link = location.href;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(link);
+        } else {
+          prompt('复制链接', link);
+        }
+      }
+    });
+  });
+};
+setTimeout(setupExports, 0);
+</script>
+</body>
+</html>

@@ -1,0 +1,149 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          108.4830556,
+          34.2993736
+        ]
+      },
+      "properties": {
+        "person": "马超",
+        "name": "扶风茂陵",
+        "type": "birth",
+        "time": "公元176年",
+        "modernName": "陕西省咸阳市兴平市",
+        "ancientName": "扶风茂陵"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          107.018889,
+          33.069049
+        ]
+      },
+      "properties": {
+        "person": "马超",
+        "name": "汉中",
+        "type": "normal",
+        "time": "公元214年—215年",
+        "modernName": "陕西省汉中市",
+        "ancientName": "汉中郡"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          104.063315,
+          30.659867
+        ]
+      },
+      "properties": {
+        "person": "马超",
+        "name": "成都",
+        "type": "normal",
+        "time": "公元215年",
+        "modernName": "四川省成都市",
+        "ancientName": "益州蜀郡"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          115.9183252,
+          28.6963403
+        ]
+      },
+      "properties": {
+        "person": "马超",
+        "name": "下辩（武都）",
+        "type": "normal",
+        "time": "公元218年—219年",
+        "modernName": "甘肃省成县西北",
+        "ancientName": "武都郡下辩"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          115.824505,
+          24.522023
+        ]
+      },
+      "properties": {
+        "person": "马超",
+        "name": "临沮（或阳平关）",
+        "type": "normal",
+        "time": "公元219年—222年",
+        "modernName": "湖北省远安县西北或陕西省勉县西",
+        "ancientName": "临沮或阳平关"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          106.4934103,
+          32.9192666
+        ]
+      },
+      "properties": {
+        "person": "马超",
+        "name": "阳平关或汉中",
+        "type": "death",
+        "time": "公元222年",
+        "modernName": "陕西省勉县西或陕西省汉中市",
+        "ancientName": "阳平关或汉中治所"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            108.4830556,
+            34.2993736
+          ],
+          [
+            107.018889,
+            33.069049
+          ],
+          [
+            104.063315,
+            30.659867
+          ],
+          [
+            115.9183252,
+            28.6963403
+          ],
+          [
+            115.824505,
+            24.522023
+          ],
+          [
+            106.4934103,
+            32.9192666
+          ]
+        ]
+      },
+      "properties": {
+        "person": "马超",
+        "name": "轨迹"
+      }
+    }
+  ]
+}

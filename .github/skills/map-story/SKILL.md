@@ -1,6 +1,6 @@
 ---
-name: MapStory
-description: MapStory 以“人物—时空—事件”为主线生成历史人物足迹地图并支持空间叙事分析
+name: StoryMap
+description: StoryMap 以“人物—时空—事件”为主线生成历史人物足迹地图并支持空间叙事分析
 argument-hint: "[人物名称]"
 user-invokable: true
 disable-model-invocation: false

@@ -7,8 +7,11 @@ map_client
 依赖环境变量：QVERIS_API_URL/QVERIS_BASE_URL、QVERIS_API_KEY（可选）
 """
 import json
+import logging
 import os
 import re
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, Iterable, List, Optional, Tuple
 from urllib.parse import quote
 from urllib.request import Request, urlopen
@@ -24,6 +27,27 @@ _GEOCODE_ENDPOINTS = [
     ("https://geocode.maps.co/search?q={}", "list"),
     ("https://photon.komoot.io/api/?limit=1&q={}", "photon"),
 ]
+
+_LOGGER = logging.getLogger("map_client")
+if not _LOGGER.handlers:
+    logging.basicConfig(level=logging.INFO)
+
+_GEOCODE_CACHE: Dict[str, Tuple[float, float]] = {}
+_GEOCODE_CACHE_LOCK = threading.Lock()
+
+
+def _geocode_cache_get(name: str) -> Optional[Tuple[float, float]]:
+    if not name:
+        return None
+    with _GEOCODE_CACHE_LOCK:
+        return _GEOCODE_CACHE.get(name)
+
+
+def _geocode_cache_set(name: str, coord: Tuple[float, float]) -> None:
+    if not name or not coord:
+        return
+    with _GEOCODE_CACHE_LOCK:
+        _GEOCODE_CACHE[name] = coord
 
 
 def _project_root() -> str:
@@ -45,7 +69,8 @@ def _http_post_json(url: str, headers: Dict[str, str], body: Dict[str, object]) 
         with urlopen(req, timeout=20) as resp:
             data = resp.read()
             return json.loads(data.decode("utf-8", errors="ignore"))
-    except Exception:
+    except Exception as exc:
+        _LOGGER.warning("http_post_failed url=%s error=%s", url, exc)
         return None
 
 
@@ -165,16 +190,129 @@ class QVerisClient:
         payload = self._execute(tool_id, {"q": name})
         return _extract_latlon(payload)
 
-def _geocode_nominatim(name: str) -> Optional[Tuple[float, float]]:
+def _is_valid_coord(lat: object, lon: object) -> bool:
+    try:
+        lat_f = float(lat)
+        lon_f = float(lon)
+    except Exception:
+        return False
+    if abs(lat_f) > 90 or abs(lon_f) > 180:
+        return False
+    return True
+
+
+def _is_inside_china(lat: object, lon: object) -> bool:
+    if not _is_valid_coord(lat, lon):
+        return False
+    lat_f = float(lat)
+    lon_f = float(lon)
+    return 17.5 <= lat_f <= 55.5 and 72.0 <= lon_f <= 136.5
+
+
+def _looks_chinese(text: str) -> bool:
+    return bool(re.search(r"[\u4e00-\u9fff]", text or ""))
+
+
+def _looks_foreign_location(text: str) -> bool:
+    value = str(text or "")
+    if not value:
+        return False
+    markers = [
+        "斯坦",
+        "共和国",
+        "王国",
+        "联邦",
+        "俄罗斯",
+        "美国",
+        "英国",
+        "法国",
+        "德国",
+        "日本",
+        "韩国",
+        "朝鲜",
+        "越南",
+        "泰国",
+        "缅甸",
+        "老挝",
+        "柬埔寨",
+        "印度",
+        "巴基斯坦",
+        "阿富汗",
+        "伊朗",
+        "伊拉克",
+        "土耳其",
+        "埃及",
+        "澳大利亚",
+        "新西兰",
+        "加拿大",
+        "墨西哥",
+        "巴西",
+        "阿根廷",
+        "西班牙",
+        "意大利",
+        "葡萄牙",
+        "荷兰",
+        "比利时",
+        "瑞士",
+        "瑞典",
+        "挪威",
+        "芬兰",
+        "丹麦",
+        "爱尔兰",
+        "以色列",
+        "沙特",
+        "阿联酋",
+        "卡塔尔",
+        "南非",
+        "吉尔吉斯斯坦",
+    ]
+    return any(m in value for m in markers)
+
+
+def _build_geocode_candidates(name: str) -> List[str]:
+    base = str(name or "").strip()
+    if not base:
+        return []
+    seen = set()
+    items = [base]
+    if (
+        _looks_chinese(base)
+        and "中国" not in base
+        and "China" not in base
+        and not _looks_foreign_location(base)
+    ):
+        items.append(f"中国{base}")
+        items.append(f"{base} 中国")
+    out = []
+    for item in items:
+        t = item.strip()
+        if t and t not in seen:
+            seen.add(t)
+            out.append(t)
+    return out
+
+
+def _geocode_nominatim(name: str, force_cn: bool = False) -> Optional[Tuple[float, float]]:
     """
     公共地理编码回退链路：
     - nominatim.openstreetmap.org
     - geocode.maps.co
     - photon.komoot.io
     """
+    if not name:
+        return None
+    country_param = "&countrycodes=cn" if force_cn else ""
+    mapsco_key = (os.getenv("MAPSCO_API_KEY") or "").strip()
     for url_tpl, kind in _GEOCODE_ENDPOINTS:
         try:
-            url = url_tpl.format(quote(name))
+            if "geocode.maps.co" in url_tpl:
+                if not mapsco_key:
+                    continue
+                url = f"{url_tpl.format(quote(name))}&api_key={quote(mapsco_key)}"
+            else:
+                url = url_tpl.format(quote(name))
+            if kind == "list" and country_param:
+                url = f"{url}{country_param}"
             req = Request(url, headers={"User-Agent": _DEFAULT_USER_AGENT})
             with urlopen(req, timeout=20) as resp:
                 data = resp.read()
@@ -183,7 +321,8 @@ def _geocode_nominatim(name: str) -> Optional[Tuple[float, float]]:
                 # Nominatim / maps.co 返回列表
                 lat = float(payload[0].get("lat"))
                 lon = float(payload[0].get("lon"))
-                return lat, lon
+                if not force_cn or _is_inside_china(lat, lon):
+                    return lat, lon
             if kind == "photon" and isinstance(payload, dict):
                 # Photon 返回 features 数组
                 features = payload.get("features") or []
@@ -192,8 +331,10 @@ def _geocode_nominatim(name: str) -> Optional[Tuple[float, float]]:
                     if len(coords) >= 2:
                         lon = float(coords[0])
                         lat = float(coords[1])
-                        return lat, lon
-        except Exception:
+                        if not force_cn or _is_inside_china(lat, lon):
+                            return lat, lon
+        except Exception as exc:
+            _LOGGER.warning("geocode_failed name=%s error=%s", name, exc)
             continue
     return None
 
@@ -210,27 +351,49 @@ def geocode_city(name: str) -> Optional[Tuple[float, float]]:
     城市/地址字符串 → GCJ-02 经纬度。
     仅使用 QVeris 接入的高德地理编码工具。
     """
+    name = str(name or "").strip()
+    if not name:
+        return None
+    candidates = _build_geocode_candidates(name)
+    looks_cn = _looks_chinese(name)
+    looks_foreign = _looks_foreign_location(name)
+    # 优先使用命中缓存，减少外部地理编码调用
+    cached = _geocode_cache_get(name)
+    if cached:
+        return cached
     api_url = os.getenv("QVERIS_API_URL") or os.getenv("QVERIS_BASE_URL")
     api_key = os.getenv("QVERIS_API_KEY")
     if api_url and api_key:
-        try:
-            QVC = _get_qveris_client_class()
-            if not QVC:
-                raise RuntimeError("QVerisClient unavailable")
-            client = QVC(api_url=api_url, api_key=api_key)
-            res = client.geocode(name)
-            if res:
-                return res
-        except Exception:
-            # QVeris 失败则降级到公共地理编码
-            return _geocode_nominatim(name)
-    return _geocode_nominatim(name)
+        for cand in candidates:
+            try:
+                QVC = _get_qveris_client_class()
+                if not QVC:
+                    raise RuntimeError("QVerisClient unavailable")
+                client = QVC(api_url=api_url, api_key=api_key)
+                res = client.geocode(cand)
+                if res:
+                    # 中文地址默认要求落在国内范围，避免解析到海外同名地点
+                    if not looks_cn or _is_inside_china(res[0], res[1]):
+                        _geocode_cache_set(name, res)
+                        _geocode_cache_set(cand, res)
+                        return res
+            except Exception:
+                pass
+    for cand in candidates:
+        res = _geocode_nominatim(cand, force_cn=looks_cn and not looks_foreign)
+        if res:
+            _geocode_cache_set(name, res)
+            _geocode_cache_set(cand, res)
+            return res
+    return None
 
 
 def _clean_place_name(text: str) -> str:
     """
     去除地名中的括注内容，保留核心名称，提升地理编码命中率。
     """
+    if not isinstance(text, str):
+        return ""
     text = _PAREN_CONTENT_RE.sub("", text)
     return text.strip()
 
@@ -239,6 +402,8 @@ def extract_places_in_order(md: str) -> List[str]:
     """
     从“年份”表解析“现称”列，按出现顺序返回地点列表（去重保序）。
     """
+    if not isinstance(md, str):
+        return []
     lines = md.splitlines()
     in_loc = False
     table_started = False
@@ -298,15 +463,24 @@ def append_coords_section(md: str) -> str:
     依据“年份”表逐个地理编码，并在文末追加“地点坐标（自动地理编码）”表。
     如果没有识别出地点或均编码失败，则不做改动直接返回原文。
     """
+    if not isinstance(md, str):
+        return ""
     lines = md.splitlines()
     coords: Dict[str, Tuple[float, float]] = {}
     places = extract_places_in_order(md)
     if not places:
         return md
-    for p in places:
-        coord = geocode_city(p)
-        if coord:
-            coords[p] = coord
+    max_workers = min(8, max(1, len(places)))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_map = {executor.submit(geocode_city, p): p for p in places}
+        for future in as_completed(future_map):
+            place = future_map[future]
+            try:
+                coord = future.result()
+            except Exception:
+                coord = None
+            if coord:
+                coords[place] = coord
     if not coords:
         return md
     section = []
@@ -326,6 +500,8 @@ def compute_total_distance_km(md: str) -> Optional[float]:
     从“地点坐标（自动地理编码）”表获取经纬度，计算总直线距离（公里）。
     使用 Haversine 公式计算。
     """
+    if not isinstance(md, str):
+        return None
     coords: List[Tuple[float, float]] = []
     lines = md.splitlines()
     in_section = False
@@ -380,6 +556,8 @@ def insert_distance_intro(md: str, distance_km: float) -> str:
     """
     在“人生足迹地图说明”中插入总行程描述。
     """
+    if not isinstance(md, str):
+        return ""
     lines = md.splitlines()
     out: List[str] = []
     inserted = False

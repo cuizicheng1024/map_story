@@ -20,6 +20,19 @@ local_env = os.path.join(os.path.dirname(__file__), ".env")
 load_dotenv(dotenv_path=local_env)
 load_dotenv(dotenv_path=os.path.join(_project_root(), ".env"))
 
+_MAX_TEXT_LEN = 200
+
+
+def _validate_person(text: object) -> Optional[str]:
+    if not isinstance(text, str):
+        return "输入必须是字符串"
+    cleaned = text.strip()
+    if not cleaned:
+        return "输入不能为空"
+    if len(cleaned) > _MAX_TEXT_LEN:
+        return f"输入过长（最多 {_MAX_TEXT_LEN} 字符）"
+    return None
+
 
 class StoryAgentLLM:
     """
@@ -34,6 +47,7 @@ class StoryAgentLLM:
         apiKey: Optional[str] = None,
         baseUrl: Optional[str] = None,
         timeout: Optional[int] = None,
+        event_callback: Optional[callable] = None,
     ):
         """
         初始化客户端。
@@ -45,6 +59,7 @@ class StoryAgentLLM:
         - LLM_TIMEOUT   -> 请求超时时间（秒），默认 60
         """
         self.model = model or os.getenv("LLM_MODEL_ID")
+        self.event_callback = event_callback
         apiKey = apiKey or os.getenv("LLM_API_KEY")
         baseUrl = baseUrl or os.getenv("LLM_BASE_URL")
         timeout = timeout or int(os.getenv("LLM_TIMEOUT", "60"))
@@ -53,6 +68,14 @@ class StoryAgentLLM:
             raise ValueError("模型ID、API密钥和服务地址必须被提供或在.env文件中定义。")
 
         self.client = OpenAI(api_key=apiKey, base_url=baseUrl, timeout=timeout)
+
+    def _emit(self, message: str) -> None:
+        if not self.event_callback:
+            return
+        try:
+            self.event_callback(message)
+        except Exception:
+            pass
 
     def think(self, messages: List[Dict[str, str]], temperature: float = 0) -> Optional[str]:
         """
@@ -66,6 +89,7 @@ class StoryAgentLLM:
         - 模型完整输出的字符串；如果发生错误则返回 None
         """
         print(f"🧠 正在调用 {self.model} 模型...")
+        self._emit(f"🧠 正在调用 {self.model} 模型...")
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -85,10 +109,16 @@ class StoryAgentLLM:
                 print(content, end="", flush=True)
                 collected.append(content)
             print()
-            return "".join(collected)
+            result = "".join(collected)
+            if result:
+                self._emit(f"✅ 大语言模型响应成功: {result}")
+            else:
+                self._emit("✅ 大语言模型响应成功")
+            return result
 
         except Exception as e:
             print(f"❌ 调用LLM API时发生错误: {e}")
+            self._emit(f"❌ 调用LLM API时发生错误: {e}")
             return None
 
 
@@ -118,6 +148,8 @@ def extract_historical_figures(llm: "StoryAgentLLM", text: str) -> List[str]:
     """
     从输入文本中抽取历史人物名称列表。
     """
+    if not isinstance(text, str):
+        return []
     sys_prompt = _read_prompt("extract_names_prompt.md")
     messages = [
         {"role": "system", "content": sys_prompt},
@@ -144,7 +176,7 @@ def save_markdown(person: str, content: str) -> str:
     root = _project_root()
     folder = os.path.join(root, "story")
     os.makedirs(folder, exist_ok=True)
-    safe = re.sub(r'[\\\\/:*?"<>|]', "_", person).strip()
+    safe = re.sub(r'[\\\\/:*?"<>|]', "_", str(person or "")).strip()
     if not safe:
         safe = "未命名人物"
     path = os.path.join(folder, f"{safe}.md")
@@ -163,6 +195,10 @@ def run_interactive(llm: "StoryAgentLLM") -> None:
         except EOFError:
             break
         if not name:
+            continue
+        err = _validate_person(name)
+        if err:
+            print(err)
             continue
         if name.lower() in {"q", "quit", "exit"}:
             print("已退出。")
@@ -192,6 +228,10 @@ def main():
 
     if args.person:
         try:
+            err = _validate_person(args.person)
+            if err:
+                print(err)
+                return
             client = StoryAgentLLM()
             targets = extract_historical_figures(client, args.person)
             if not targets:
