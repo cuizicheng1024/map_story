@@ -1,15 +1,13 @@
+# Ignore all hidden files and directories
+.*
+!.gitignore
+
 # Dependencies
 node_modules/
 
 # Production build
 dist/
 build/
-
-# Environment variables
-.env
-.env.local
-.env.*
-!.env.example
 
 # Logs
 logs
@@ -19,7 +17,6 @@ yarn-debug.log*
 yarn-error.log*
 
 # OS metadata
-.DS_Store
 Thumbs.db
 story/.DS_Store
 
@@ -33,16 +30,6 @@ env/
 venv/
 .venv/
 *.egg-info/
-
-# IDEs
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# Cache
-.cache/
-.eslintcache
 
 # Project specific outputs (generated files)
 story_map/*.html
