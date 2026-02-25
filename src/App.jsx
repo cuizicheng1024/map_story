@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const MAX_INPUT_LEN = 200;
 const historyItems = ["曹操", "李白", "苏轼", "康熙", "唐三藏"];
-const API_BASE = (() => {
-  const globalBase = window.MAP_STORY_API_BASE;
+const API_ENDPOINT = (() => {
+  const globalBase = window.MAP_STORY_AI_ENDPOINT || window.MAP_STORY_API_BASE;
   if (typeof globalBase === "string" && globalBase.trim()) {
     return globalBase.replace(/\/+$/, "");
   }
@@ -12,12 +12,20 @@ const API_BASE = (() => {
   if (origin && origin !== "null" && protocol !== "file:") {
     return origin;
   }
-  return "http://localhost:8765";
+  return "https://gapp.so/api/ai/gemini";
 })();
 
+const useDirectEndpoint = API_ENDPOINT.includes("/api/ai/") || API_ENDPOINT.includes("/ai/");
+
 const buildApiUrl = (path) => {
-  if (!path) return API_BASE;
-  return `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
+  if (!path) return API_ENDPOINT;
+  if (useDirectEndpoint) return API_ENDPOINT;
+  return `${API_ENDPOINT}${path.startsWith("/") ? "" : "/"}${path}`;
+};
+
+const buildTaskUrl = (taskId) => {
+  if (!taskId || useDirectEndpoint) return "";
+  return buildApiUrl(`/task?id=${encodeURIComponent(taskId)}`);
 };
 
 const resolveFileUrl = (path) => {
@@ -26,6 +34,19 @@ const resolveFileUrl = (path) => {
   } catch (err) {
     return path;
   }
+};
+
+const normalizeResultPayload = (data) => {
+  if (!data) return null;
+  if (data.result) return data.result;
+  if (data.data) return data.data;
+  return data;
+};
+
+const extractResultText = (result) => {
+  if (!result) return "";
+  if (typeof result === "string") return result;
+  return result.text || result.content || result.message || result.answer || result.output || "";
 };
 
 export default function App() {
@@ -156,12 +177,17 @@ export default function App() {
     let lastStatus = "";
     let shownQueued = false;
     let shownRunning = false;
+    const taskUrl = buildTaskUrl(taskId);
+    if (!taskUrl) {
+      appendMessage({ type: "text", role: "assistant", text: "当前接口不支持任务轮询，无法获取进度。" });
+      return;
+    }
     if (timerRef.current) {
       clearInterval(timerRef.current);
     }
     timerRef.current = setInterval(async () => {
       try {
-        const resp = await fetch(buildApiUrl(`/task?id=${encodeURIComponent(taskId)}`));
+        const resp = await fetch(taskUrl);
         if (!resp.ok) return;
         const data = await resp.json();
         if (!data || !data.ok) {
@@ -230,21 +256,37 @@ export default function App() {
       const resp = await fetch(buildApiUrl("/generate"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ person: text })
+        body: JSON.stringify({ person: text, text })
       });
       if (!resp.ok) {
-        appendMessage({ type: "text", role: "assistant", text: `生成失败（HTTP ${resp.status}）。请确认服务可用：${API_BASE}` });
+        appendMessage({ type: "text", role: "assistant", text: `生成失败（HTTP ${resp.status}）。请确认服务可用：${API_ENDPOINT}` });
         return;
       }
       const data = await resp.json();
-      if (!data || !data.ok || !data.task_id) {
+      if (!data || data.ok === false) {
         appendMessage({ type: "text", role: "assistant", text: `生成失败：${data?.error || "未知错误"}` });
         return;
       }
-      renderQueue(data.queue);
-      pollTask(data.task_id, text);
+      if (data.task_id) {
+        renderQueue(data.queue);
+        pollTask(data.task_id, text);
+        return;
+      }
+      const result = normalizeResultPayload(data);
+      if (result?.conclusion) {
+        appendMessage({ type: "text", role: "assistant", text: `任务结论：${result.conclusion}` });
+      }
+      renderFiles(result?.files || result?.items || result?.results);
+      renderMultiFiles(result?.multi);
+      const textReply = extractResultText(result);
+      if (textReply) {
+        appendMessage({ type: "text", role: "assistant", text: textReply });
+      } else {
+        appendMessage({ type: "text", role: "assistant", text: "已收到响应，但未包含可展示内容。" });
+      }
+      renderResultJson(result);
     } catch (err) {
-      appendMessage({ type: "text", role: "assistant", text: `服务不可达，请确认后端服务可用：${API_BASE}` });
+      appendMessage({ type: "text", role: "assistant", text: `服务不可达，请确认接口可用：${API_ENDPOINT}` });
     }
   }, [appendMessage, pollTask, renderQueue]);
 
@@ -406,7 +448,7 @@ export default function App() {
               发送
             </button>
           </div>
-          <div className="mt-2 text-xs text-slate-400">自动生成服务端口：8765</div>
+          <div className="mt-2 text-xs text-slate-400">当前接口：{API_ENDPOINT}</div>
         </form>
       </main>
     </div>
