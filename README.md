@@ -1,7 +1,7 @@
 # StoryMap 作品介绍
 
 ## 🧾 项目信息
-- 作者：崔成（cuizicheng.1024@gmail.com）
+- 作者：崔子橙（cuizicheng.1024@gmail.com）
 - 版本：v1.0.0
 - 创作时间：2026-02-20
 
