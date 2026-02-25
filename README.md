@@ -18,7 +18,7 @@ MapStory 以“人物—时空—事件”为主线，聚焦历史人物的空�
 ## 🔁 输入与输出
 - 输入：包含人物名称的自然语言请求，如“李白的一生足迹”“苏轼去过哪些地方”
 - 输出：到访地点、年龄与典型事件摘要，并生成可交互的足迹地图 HTML
-
+运行时间约3-10分钟，主要依赖于人物生平 Markdown 与 地图渲染时间。
 
 ## 🧩 技术架构
 - 生成层：人物名抽取与生平生成，入口为 .github/skills/map-story/script/story_agents.py
@@ -80,7 +80,3 @@ python .github/skills/map-story/script/story_map.py
    <img width="2578" height="1238" alt="人物二" src="https://github.com/user-attachments/assets/58a4f8b8-2526-4109-aa5a-f7e6f5b79857" />
 3. ***：关东有义士，兴兵讨群凶
    <img width="2608" height="1270" alt="人物三" src="https://github.com/user-attachments/assets/6f4b8c12-cba8-4fd3-be64-749cd9b19463" />
-
-
-
-   
