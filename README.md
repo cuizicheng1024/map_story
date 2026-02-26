@@ -1,9 +1,7 @@
-# StoryMap作品介绍
 
-## 🧾 项目信息
-- 作者：崔成（cuizicheng.1024@gmail.com）
-- 版本：v1.0.0
-- 创作时间：2026-02-20
+
+# 🧾 toryMap项目信息
+
 
 ## 📌 项目定位
 MapStory 以“人物—时空—事件”为主线，聚焦历史人物的空间叙事。该技能可根据用户输入的人物名称，自动生成该人物的到访城市、年龄与典型事件，并可视化为交互式足迹地图，便于从空间视角理解人物生平。
@@ -80,3 +78,9 @@ python .github/skills/map-story/script/story_map.py
    <img width="2578" height="1238" alt="人物二" src="https://github.com/user-attachments/assets/58a4f8b8-2526-4109-aa5a-f7e6f5b79857" />
 3. ***：关东有义士，兴兵讨群凶
    <img width="2608" height="1270" alt="人物三" src="https://github.com/user-attachments/assets/6f4b8c12-cba8-4fd3-be64-749cd9b19463" />
+
+
+- 作者：Cui Cheng（cuizicheng.1024@gmail.com）
+- 版本：v1.1.0
+- 创作时间：2026-02-20
+- 最新修改时间：2026-02-25

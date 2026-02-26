@@ -2,7 +2,10 @@
 set -e
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
-nohup python "$ROOT/.github/skills/map-story/script/story_map.py" --serve --port 8765 > /tmp/story_map_server.log 2>&1 &
+
+# Point to the new location in storymap/script/
+nohup python "$ROOT/storymap/script/story_map.py" --serve --port 8765 > /tmp/story_map_server.log 2>&1 &
+
 if [ ! -d "$ROOT/node_modules" ]; then
   npm install
 fi

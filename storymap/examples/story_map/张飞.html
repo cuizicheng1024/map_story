@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>张飞的人生足迹地图</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" onerror="if(!this.dataset.f){this.dataset.f='1';this.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';}else if(this.dataset.f==='1'){this.dataset.f='2';this.href='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css';}" />
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" onerror="if(!this.dataset.f){this.dataset.f='1';this.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';}else if(this.dataset.f==='1'){this.dataset.f='2';this.src='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js';}"></script>
+<script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js" onerror="if(!this.dataset.f){this.dataset.f='1';this.src='https://unpkg.com/react@18/umd/react.production.min.js';}else if(this.dataset.f==='1'){this.dataset.f='2';this.src='https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js';}"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js" onerror="if(!this.dataset.f){this.dataset.f='1';this.src='https://unpkg.com/react-dom@18/umd/react-dom.production.min.js';}else if(this.dataset.f==='1'){this.dataset.f='2';this.src='https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js';}"></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.24.7/babel.min.js" onerror="if(!this.dataset.f){this.dataset.f='1';this.src='https://unpkg.com/@babel/standalone@7.24.7/babel.min.js';}else if(this.dataset.f==='1'){this.dataset.f='2';this.src='https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js';}"></script>
+<style>
+body {
+  font-family: 'Noto Serif SC', serif;
+  background-color: #fdf6e3;
+  color: #2c3e50;
+}
+#map {
+  height: 620px;
+  width: 100%;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  z-index: 1;
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #c0392b;
+  border-radius: 10px;
+}
+.glass-panel {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(200, 180, 150, 0.3);
+}
+.desc-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.age-marker {
+  background: transparent;
+  border: none;
+}
+.age-badge {
+  background: rgba(255, 255, 255, 0.65);
+  color: #7c2d12;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  border: 1px solid rgba(200, 180, 150, 0.5);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  white-space: nowrap;
+}
+.export-bar {
+  position: fixed;
+  top: 14px;
+  right: 16px;
+  display: flex;
+  gap: 8px;
+  z-index: 9999;
+}
+.export-btn {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(200, 180, 150, 0.5);
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #7c2d12;
+  cursor: pointer;
+}
+.export-btn:hover {
+  background: rgba(255, 255, 255, 0.98);
+}
+</style>
+</head>
+<body class="p-4 md:p-8">
+<div class="export-bar">
+  <button class="export-btn" data-export="geojson">GeoJSON</button>
+  <button class="export-btn" data-export="csv">CSV</button>
+  <button class="export-btn" data-export="markdown">Markdown</button>
+  <button class="export-btn" data-export="share">分享链接</button>
+</div>
+<div id="root"></div>
+<script type="text/babel" data-presets="env,react">
+const { useState, useEffect, useRef, useMemo } = React;
+const data = {"person": {"name": "张飞", "title": "", "description": "张飞，字翼德，东汉末年涿郡涿县人，与关羽、刘备结为异姓兄弟，共同参与讨伐黄巾起义。他勇猛过人，长坂坡据水断桥，威震曹军。后随刘备辗转各地，先后依附公孙瓒、陶谦、曹操、袁绍，最终投奔荆州刘表。赤壁之战后，助刘备夺取益州，任巴西太守。刘备称帝后，拜车骑将军，领司隶校尉。公元221年，为替关羽报仇，随刘备伐吴，在阆中被部将范强、张达刺杀，谥号桓侯。", "quote": "《三国志·蜀书·张飞传》：\"飞雄壮威猛，亚于关羽\"", "dynasty": "东汉末年至三国时期", "birthplace": "今河北省涿州市）", "avatar": "", "birth": {"date": "167年", "location": "今河北省涿州市）", "lat": 39.485684, "lng": 115.97444}, "death": {"date": "221年", "location": "今四川省阆中市）", "lat": 31.558356, "lng": 106.005046}, "lifespan": "约55岁"}, "locations": [{"name": "涿郡涿县", "ancientName": "涿郡涿县", "modernName": "河北省涿州市", "lat": 39.485684, "lng": 115.97444, "type": "birth", "event": "在此地与关羽、刘备相识，结为异姓兄弟，共同参与讨伐黄巾起义", "time": "约公元167年", "duration": "早年生活阶段", "significance": "人生起点，与刘备、关羽结义之地，奠定一生政治基础", "works": [], "quoteLines": []}, {"name": "广陵郡下邳县", "ancientName": "广陵郡下邳县", "modernName": "江苏省徐州市邳州市", "lat": 34.339208, "lng": 118.012511, "type": "normal", "event": "随刘备依附陶谦，在此地参与对抗吕布的战斗", "time": "公元192年—195年", "duration": "约3年", "significance": "早期军事生涯的重要阶段，开始展现军事才能", "works": [], "quoteLines": ["《三国志·蜀书·张飞传》：\"飞雄壮威猛，亚于关羽\""]}, {"name": "许昌", "ancientName": "许昌", "modernName": "河南省许昌市", "lat": 34.03732, "lng": 113.852004, "type": "normal", "event": "随刘备依附曹操，参与讨伐吕布、袁术等战役", "time": "公元196年—199年", "duration": "约3年", "significance": "接触中央政权，扩大军事经验", "works": [], "quoteLines": ["《三国志·蜀书·张飞传》：\"飞善待士卒而轻士大夫\""]}, {"name": "汝南", "ancientName": "汝南", "modernName": "河南省驻马店市汝南县", "lat": 33.006808, "lng": 114.362477, "type": "normal", "event": "刘备兵败后，与关羽失散，后在此地与刘备重逢", "time": "公元200年", "duration": "约1年", "significance": "人生低谷后的重聚，坚定追随刘备的决心", "works": [], "quoteLines": []}, {"name": "荆州", "ancientName": "荆州", "modernName": "湖北省荆州市及周边地区", "lat": 30.058187, "lng": 116.072214, "type": "normal", "event": "随刘备依附刘表，参与赤壁之战，大败曹操", "time": "公元201年—208年", "duration": "约7年", "significance": "战略转折点，为刘备立足荆州奠定基础", "works": [], "quoteLines": ["《三国志·蜀书·张飞传》：\"飞据水断桥，瞋目横矛曰：'身是张翼德也，可来共决死！'\""]}, {"name": "益州", "ancientName": "益州", "modernName": "四川省及重庆市一带", "lat": 30.651696, "lng": 104.076452, "type": "normal", "event": "随刘备入蜀，参与夺取益州之战，任巴西太守，大破张郃", "time": "公元211年—219年", "duration": "约8年", "significance": "成为蜀汉政权的重要将领，镇守一方", "works": [], "quoteLines": ["《三国志·蜀书·张飞传》：\"飞义释严颜，严颜曰：'巴郡但有断头将军，无降将军！'\""]}, {"name": "阆中", "ancientName": "阆中", "modernName": "四川省阆中市", "lat": 31.558356, "lng": 106.005046, "type": "normal", "event": "任巴西太守，镇守蜀汉东部门户，准备伐吴", "time": "公元219年—221年", "duration": "约2年", "significance": "人生最后阶段，为关羽报仇做准备", "works": [], "quoteLines": ["《三国志·蜀书·张飞传》：\"飞为部将范强、张达所害\""]}, {"name": "阆中", "ancientName": "阆中", "modernName": "四川省阆中市", "lat": 31.558356, "lng": 106.005046, "type": "death", "event": "为替关羽报仇，随刘备伐吴前夕，被部将范强、张达刺杀", "time": "公元221年", "duration": "短暂停留", "significance": "悲剧性结局，未能参与伐吴之战，蜀汉失去一员猛将", "works": [], "quoteLines": ["《三国志·蜀书·张飞传》：\"飞暴而无恩，以待士卒，而轻侮士大夫\""]}], "mapStyle": {"pathColor": "#1e40af", "markers": {"normal": {"iconUrl": "https://a.amap.com/jsapi_demos/static/demo-center/icons/poi-marker-default.png", "color": "#3498db"}, "birth": {"iconUrl": "https://a.amap.com/jsapi_demos/static/demo-center/icons/poi-marker-green.png", "color": "#2ecc71"}, "death": {"iconUrl": "https://a.amap.com/jsapi_demos/static/demo-center/icons/poi-marker-red.png", "color": "#e74c3c"}}}, "markdown": "# 人物 生平传记与足迹\n\n## 一、人物档案\n\n### 基本信息\n- **姓名**：张飞（字翼德，谥号桓侯）\n- **时代**：东汉末年至三国时期\n- **出生**：公元？年—约公元167年（涿郡涿县，今河北省涿州市）\n- **去世**：公元221年（阆中，今四川省阆中市）\n- **享年**：约55岁\n- **主要身份**：蜀汉名将、刘备义弟、军事家\n- **历史地位**：三国时期蜀汉五虎上将之一，以勇猛著称\n- **主要成就**：长坂坡据水断桥、义释严颜、巴西之战大破张郃、助刘备建立蜀汉政权\n\n### 生平概述\n张飞，字翼德，东汉末年涿郡涿县人，与关羽、刘备结为异姓兄弟，共同参与讨伐黄巾起义。他勇猛过人，长坂坡据水断桥，威震曹军。后随刘备辗转各地，先后依附公孙瓒、陶谦、曹操、袁绍，最终投奔荆州刘表。赤壁之战后，助刘备夺取益州，任巴西太守。刘备称帝后，拜车骑将军，领司隶校尉。公元221年，为替关羽报仇，随刘备伐吴，在阆中被部将范强、张达刺杀，谥号桓侯。\n\n---\n\n## 二、人生足迹地图说明\n- 🗺️ **行程概览**：从河北到四川，辗转中原多地\n- ⏱️ **时间跨度**：约公元167年—221年，共约55年\n- 📍 **地理范围**：华北平原、中原地区、长江流域、西南地区\n- 🌟 **重要节点数量**：8个\n\n---\n\n## 三、人生历程与重要地点（按时间顺序）\n\n### 🟢 出生地：涿郡涿县\n- **公元纪年**：约公元167年\n- **停留时间**：早年生活阶段\n- **位置**：涿郡涿县（今河北省涿州市）\n- **事迹**：在此地与关羽、刘备相识，结为异姓兄弟，共同参与讨伐黄巾起义\n- **意义**：人生起点，与刘备、关羽结义之地，奠定一生政治基础\n\n### 📍 重要地点：广陵郡下邳县\n- **公元纪年**：公元192年—195年\n- **停留时间**：约3年\n- **位置**：广陵郡下邳县（今江苏省徐州市邳州市）\n- **事迹**：随刘备依附陶谦，在此地参与对抗吕布的战斗\n- **意义**：早期军事生涯的重要阶段，开始展现军事才能\n- **名篇名句**：《三国志·蜀书·张飞传》：\"飞雄壮威猛，亚于关羽\"\n\n### 📍 重要地点：许昌\n- **公元纪年**：公元196年—199年\n- **停留时间**：约3年\n- **位置**：许昌（今河南省许昌市）\n- **事迹**：随刘备依附曹操，参与讨伐吕布、袁术等战役\n- **意义**：接触中央政权，扩大军事经验\n- **名篇名句**：《三国志·蜀书·张飞传》：\"飞善待士卒而轻士大夫\"\n\n### 📍 重要地点：汝南\n- **公元纪年**：公元200年\n- **停留时间**：约1年\n- **位置**：汝南（今河南省驻马店市汝南县）\n- **事迹**：刘备兵败后，与关羽失散，后在此地与刘备重逢\n- **意义**：人生低谷后的重聚，坚定追随刘备的决心\n\n### 📍 重要地点：荆州\n- **公元纪年**：公元201年—208年\n- **停留时间**：约7年\n- **位置**：荆州（今湖北省荆州市及周边地区）\n- **事迹**：随刘备依附刘表，参与赤壁之战，大败曹操\n- **意义**：战略转折点，为刘备立足荆州奠定基础\n- **名篇名句**：《三国志·蜀书·张飞传》：\"飞据水断桥，瞋目横矛曰：'身是张翼德也，可来共决死！'\"\n\n### 📍 重要地点：益州\n- **公元纪年**：公元211年—219年\n- **停留时间**：约8年\n- **位置**：益州（今四川省及重庆市一带）\n- **事迹**：随刘备入蜀，参与夺取益州之战，任巴西太守，大破张郃\n- **意义**：成为蜀汉政权的重要将领，镇守一方\n- **名篇名句**：《三国志·蜀书·张飞传》：\"飞义释严颜，严颜曰：'巴郡但有断头将军，无降将军！'\"\n\n### 📍 重要地点：阆中\n- **公元纪年**：公元219年—221年\n- **停留时间**：约2年\n- **位置**：阆中（今四川省阆中市）\n- **事迹**：任巴西太守，镇守蜀汉东部门户，准备伐吴\n- **意义**：人生最后阶段，为关羽报仇做准备\n- **名篇名句**：《三国志·蜀书·张飞传》：\"飞为部将范强、张达所害\"\n\n### 🔴 去世地：阆中\n- **公元纪年**：公元221年\n- **停留时间**：短暂停留\n- **位置**：阆中（今四川省阆中市）\n- **经过**：为替关羽报仇，随刘备伐吴前夕，被部将范强、张达刺杀\n- **意义**：悲剧性结局，未能参与伐吴之战，蜀汉失去一员猛将\n- **名篇名句**：《三国志·蜀书·张飞传》：\"飞暴而无恩，以待士卒，而轻侮士大夫\"\n\n---\n\n## 四、生平时间线\n\n| 年份 | 年龄 | 关键事件 |\n| --- | --- | --- |\n| 约167年 | 出生 | 出生于涿郡涿县 |\n| 184年 | 约17岁 | 与刘备、关羽相识，结为异姓兄弟 |\n| 192年 | 约25岁 | 随刘备依附陶谦，驻守下邳 |\n| 196年 | 约29岁 | 随刘备依附曹操 |\n| 200年 | 约33岁 | 刘备兵败，与关羽失散后于汝南重逢 |\n| 201年 | 约34岁 | 随刘备依附刘表，驻守荆州 |\n| 208年 | 约41岁 | 参与赤壁之战，大败曹操 |\n| 211年 | 约44岁 | 随刘备入蜀，参与夺取益州之战 |\n| 214年 | 约47岁 | 刘备占领益州，张飞任巴西太守 |\n| 219年 | 约52岁 | 巴西之战大破张郃 |\n| 221年 | 约54岁 | 被部将范强、张达刺杀于阆中 |\n\n---\n\n## 五、历史影响\n\n### 对当时的影响\n张飞作为蜀汉五虎上将之一，在三国鼎立格局中发挥了重要作用。他勇猛过人，长坂坡据水断桥，威震曹军；巴西之战大破张郃，稳固了蜀汉东部门户；随刘备参与赤壁之战，为刘备建立蜀汉政权立下汗马功劳。他的军事才能和勇猛形象成为蜀汉政权的重要象征。\n\n### 对后世的影响\n- 勇猛将领的典范形象深入人心，成为后世武将的楷模\n- \"张飞\"名字成为勇猛的代名词，民间流传众多关于他的故事和传说\n- 与刘备、关羽的兄弟情谊成为忠义精神的象征，影响后世伦理观念\n- 其艺术形象在戏曲、小说、影视作品中广泛传播，成为三国文化的重要组成部分\n\n### 历史评价\n- 陈寿《三国志》：\"飞雄壮威猛，亚于关羽，然羽善待士卒而骄于士大夫，飞爱敬君子而不恤小人。\"\n- 罗贯中《三国演义》：\"翼德威风八面，长坂坡前退曹兵；义释严颜显豪杰，巴西大战破张郃。\"\n- 明代李贽：\"张飞虽粗，却有粗人好处，不似今人精细而奸。\"\n- 清代毛宗岗：\"张飞之勇，不在关羽之下；张飞之义，不在刘备之下。\""};
+window.__EXPORT_DATA__ = data;
+const locations = data.locations || [];
+const mapStyle = data.mapStyle || {};
+const markerStyles = mapStyle.markers || {};
+const defaultMarkerStyles = {
+  normal: {
+    iconUrl: 'https://a.amap.com/jsapi_demos/static/demo-center/icons/poi-marker-default.png',
+    color: '#3498db'
+  },
+  birth: {
+    iconUrl: 'https://a.amap.com/jsapi_demos/static/demo-center/icons/poi-marker-green.png',
+    color: '#2ecc71'
+  },
+  death: {
+    iconUrl: 'https://a.amap.com/jsapi_demos/static/demo-center/icons/poi-marker-red.png',
+    color: '#e74c3c'
+  }
+};
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+const extractYear = (text) => {
+  if (!text) return null;
+  const match = String(text).match(/(\d{3,4})\s*年/);
+  return match ? parseInt(match[1], 10) : null;
+};
+const App = () => {
+  const [selectedLoc, setSelectedLoc] = useState(locations[0] || null);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [showFullDesc, setShowFullDesc] = useState(false);
+  const [splitPct, setSplitPct] = useState(30);
+  const mapRef = useRef(null);
+  const splitRef = useRef(null);
+  const draggingRef = useRef(false);
+  const totalEvents = locations.length;
+  const avatarUrl = data.person?.avatar || '';
+  const description = data.person?.description || '';
+  const quoteText = data.person?.quote || data.person?.title || '';
+  const descSegments = useMemo(() => {
+    if (!description) return [];
+    const parts = description.split(/([。！？])/);
+    const segs = [];
+    for (let i = 0; i < parts.length; i += 2) {
+      const seg = `${parts[i] || ''}${parts[i + 1] || ''}`.trim();
+      if (seg) segs.push(seg);
+    }
+    return segs;
+  }, [description]);
+  const isLongDesc = useMemo(() => description.length > 120 || descSegments.length > 3, [description, descSegments]);
+  const stats = useMemo(() => {
+    let totalDist = 0;
+    for (let i = 0; i < locations.length - 1; i++) {
+      totalDist += calculateDistance(
+        locations[i].lat, locations[i].lng,
+        locations[i+1].lat, locations[i+1].lng
+      );
+    }
+    const regions = new Set(locations.map(l => (l.modernName || l.name || '').split(/[\s/]/)[0]).filter(Boolean));
+    const years = parseInt((data.person?.lifespan || '').replace(/\D/g, ''), 10) || 0;
+    return {
+      distance: Math.round(totalDist),
+      regions: regions.size,
+      events: locations.length,
+      years: years
+    };
+  }, []);
+  const birthDate = data.person?.birth?.date || '';
+  const deathDate = data.person?.death?.date || '';
+  const lifeDates = birthDate || deathDate
+    ? `${birthDate}${birthDate && deathDate ? '-' : ''}${deathDate}`
+    : (data.person?.lifespan || '');
+  const birthYear = useMemo(() => extractYear(birthDate), [birthDate]);
+  const getAgeText = (loc) => {
+    const year = extractYear(loc.time || '');
+    if (!birthYear || !year) return '';
+    const age = year - birthYear + 1;
+    if (!Number.isFinite(age) || age <= 0 || age > 150) return '';
+    return `${age}岁`;
+  };
+  const renderDescription = () => {
+    if (!description) return null;
+    return (
+      <div className="mb-4">
+        <div className={`text-gray-600 leading-relaxed ${showFullDesc ? '' : 'desc-clamp'}`}>
+          {descSegments.map((seg, idx) => (
+            <span key={idx} className="block">{seg}</span>
+          ))}
+        </div>
+        {isLongDesc ? (
+          <button
+            onClick={() => setShowFullDesc(!showFullDesc)}
+            className="text-xs text-[#c0392b] mt-1"
+          >
+            {showFullDesc ? '收起' : '展开'}
+          </button>
+        ) : null}
+      </div>
+    );
+  };
+  const changeEvent = (nextIndex) => {
+    if (nextIndex < 0 || nextIndex >= totalEvents || nextIndex === activeIndex) return;
+    const nextLoc = locations[nextIndex] || null;
+    setActiveIndex(nextIndex);
+    setSelectedLoc(nextLoc);
+    if (mapRef.current && nextLoc) {
+      mapRef.current.setView([nextLoc.lat, nextLoc.lng], 7);
+    }
+  };
+  useEffect(() => {
+    if (!mapRef.current) {
+      const first = locations[0] || { lat: 35, lng: 105 };
+      const map = L.map('map', { zoomControl: false }).setView([first.lat, first.lng], locations.length ? 4 : 4);
+      L.control.zoom({ position: 'topright' }).addTo(map);
+      const tileSources = [
+        {
+          url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          options: { attribution: '&copy; OpenStreetMap contributors' }
+        },
+        {
+          url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+          options: { attribution: '&copy; OpenStreetMap contributors' }
+        },
+        {
+          url: 'https://{s}.tile.openstreetmap.de/{z}/{x}/{y}.png',
+          options: { attribution: '&copy; OpenStreetMap contributors' }
+        },
+        {
+          url: 'https://webrd{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}',
+          options: { subdomains: ['0', '1', '2', '3'], attribution: '&copy; 高德地图' }
+        },
+        {
+          url: 'https://webst{s}.is.autonavi.com/appmaptile?style=7&x={x}&y={y}&z={z}',
+          options: { subdomains: ['0', '1', '2', '3'], attribution: '&copy; 高德地图' }
+        }
+      ];
+      const addTileLayer = (mapInstance) => {
+        let idx = 0;
+        let errorCount = 0;
+        let layer = L.tileLayer(tileSources[idx].url, tileSources[idx].options);
+        const handleError = () => {
+          errorCount += 1;
+          if (errorCount >= 8) {
+            idx += 1;
+            if (idx >= tileSources.length) {
+              return;
+            }
+            mapInstance.removeLayer(layer);
+            layer = L.tileLayer(tileSources[idx].url, tileSources[idx].options);
+            layer.addTo(mapInstance);
+            errorCount = 0;
+            layer.on('tileerror', handleError);
+          }
+        };
+        layer.on('tileerror', handleError);
+        layer.addTo(mapInstance);
+      };
+      addTileLayer(map);
+      const resolveMarkerStyle = (type) => {
+        if (markerStyles[type]) return markerStyles[type];
+        if (markerStyles.normal) return markerStyles.normal;
+        return defaultMarkerStyles[type] || defaultMarkerStyles.normal;
+      };
+      const markerIcon = (type) => {
+        const iconUrl = resolveMarkerStyle(type).iconUrl || defaultMarkerStyles.normal.iconUrl;
+        return L.icon({
+          iconUrl,
+          iconSize: [25, 34],
+          iconAnchor: [12, 34],
+          popupAnchor: [0, -30]
+        });
+      };
+      const pathCoords = locations.map(l => [l.lat, l.lng]);
+      for (let i = 0; i < pathCoords.length - 1; i++) {
+        const opacity = 0.25 + (i / pathCoords.length) * 0.6;
+        L.polyline([pathCoords[i], pathCoords[i+1]], {
+          color: mapStyle.pathColor || '#1e40af',
+          weight: 3,
+          opacity: opacity
+        }).addTo(map);
+      }
+      locations.forEach((loc, idx) => {
+        const style = resolveMarkerStyle(loc.type || 'normal');
+        L.circleMarker([loc.lat, loc.lng], {
+          radius: 10,
+          color: style.color || defaultMarkerStyles.normal.color,
+          fillColor: style.color || defaultMarkerStyles.normal.color,
+          fillOpacity: 0.35,
+          weight: 2
+        }).addTo(map);
+        const marker = L.marker([loc.lat, loc.lng], { icon: markerIcon(loc.type || 'normal') }).addTo(map);
+        marker.on('click', () => {
+          setSelectedLoc(loc);
+          setActiveIndex(idx);
+          map.setView([loc.lat, loc.lng], 7);
+        });
+        const ageText = getAgeText(loc);
+        if (ageText) {
+          const ageIcon = L.divIcon({
+            className: 'age-marker',
+            html: `<div class="age-badge">${ageText}</div>`,
+            iconSize: [44, 20],
+            iconAnchor: [22, 30]
+          });
+          L.marker([loc.lat, loc.lng], { icon: ageIcon, interactive: false }).addTo(map);
+        }
+      });
+      if (pathCoords.length > 1) {
+        const bounds = L.latLngBounds(pathCoords);
+        map.fitBounds(bounds, { padding: [48, 48], maxZoom: 6 });
+      } else if (pathCoords.length === 1) {
+        map.setView(pathCoords[0], 6);
+      }
+      mapRef.current = map;
+    }
+  }, []);
+  useEffect(() => {
+    const onMove = (e) => {
+      if (!draggingRef.current || !splitRef.current) return;
+      const rect = splitRef.current.getBoundingClientRect();
+      const next = ((e.clientX - rect.left) / rect.width) * 100;
+      if (!Number.isFinite(next)) return;
+      const clamped = Math.min(60, Math.max(20, next));
+      setSplitPct(clamped);
+    };
+    const onUp = () => {
+      draggingRef.current = false;
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, []);
+  const handleLocClick = (loc, idx) => {
+    setSelectedLoc(loc);
+    if (typeof idx === 'number') {
+      setActiveIndex(idx);
+    }
+    if (mapRef.current) {
+      mapRef.current.setView([loc.lat, loc.lng], 7);
+    }
+  };
+  return (
+    <div className="max-w-screen-2xl mx-auto space-y-6">
+      <header className="glass-panel p-6 rounded-xl shadow-sm border-l-8 border-[#c0392b] flex flex-col md:flex-row gap-6 items-center">
+        <div className="w-32 h-32 bg-[#e5e7eb] rounded-full flex items-center justify-center border-4 border-white shadow-inner overflow-hidden">
+          {avatarUrl ? (
+            <img src={avatarUrl} alt={data.person?.name || ''} className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-gray-600 text-2xl">{data.person?.name || ''}</span>
+          )}
+        </div>
+        <div className="flex-1 text-center md:text-left">
+          <h1 className="text-4xl font-bold">{data.person.name}</h1>
+          {quoteText ? (
+            <p className="text-xs text-gray-500 mt-1 mb-2">{quoteText}</p>
+          ) : null}
+          {renderDescription()}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div>
+              <p className="text-gray-400 text-sm">朝代</p>
+              <p className="font-bold">{data.person?.dynasty || ''}</p>
+            </div>
+            <div>
+              <p className="text-gray-400 text-sm">籍贯</p>
+              <p className="font-bold">{data.person?.birthplace || ''}</p>
+            </div>
+            <div>
+              <p className="text-gray-400 text-sm">生卒</p>
+              <p className="font-bold">{lifeDates}</p>
+            </div>
+            <div>
+              <p className="text-gray-400 text-sm">享年</p>
+              <p className="font-bold">{data.person?.lifespan || ''}</p>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div className="space-y-6">
+        <div ref={splitRef} className="flex flex-col lg:flex-row gap-6 items-stretch">
+          <div
+            className="glass-panel rounded-xl overflow-hidden flex flex-col h-[620px]"
+            style={{ flexBasis: `${splitPct}%`, flexGrow: 0 }}
+          >
+            <div className="p-4 bg-[#c0392b] text-white font-bold flex items-center justify-between">
+              <span>足迹时间轴</span>
+              <div className="flex items-center gap-2 text-xs">
+                <button
+                  onClick={() => changeEvent(activeIndex - 1)}
+                  disabled={activeIndex === 0}
+                  className="px-2 py-1 rounded bg-white/20 disabled:opacity-40"
+                >上一事件</button>
+                <span className="opacity-80">{totalEvents ? activeIndex + 1 : 0} / {totalEvents}</span>
+                <button
+                  onClick={() => changeEvent(activeIndex + 1)}
+                  disabled={activeIndex + 1 >= totalEvents}
+                  className="px-2 py-1 rounded bg-white/20 disabled:opacity-40"
+                >下一事件</button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3">
+              {locations.length ? (
+                locations.map((loc, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => handleLocClick(loc, idx)}
+                    className={`p-3 rounded-lg cursor-pointer transition-all border-l-4 ${
+                      idx === activeIndex
+                        ? 'bg-white shadow-md border-[#c0392b]'
+                        : 'bg-white/70 border-transparent hover:bg-white'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="font-bold text-sm">{loc.name}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
+                        {loc.time || '未知'}
+                      </span>
+                    </div>
+                    <div className="space-y-1 text-[11px] text-gray-500 mb-2">
+                      <div className="flex justify-between">
+                        <span>公元纪年</span>
+                        <span className="text-gray-700">{loc.time || '未知'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>停留时间</span>
+                        <span className="text-gray-700">{loc.duration || '未知'}</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500">{loc.event}</p>
+                  </div>
+                ))
+              ) : (
+                <div className="text-xs text-gray-400">暂无事件</div>
+              )}
+            </div>
+          </div>
+          <div
+            className="hidden lg:block w-2 rounded bg-[#c8b496]/50 hover:bg-[#c8b496] cursor-col-resize"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              draggingRef.current = true;
+            }}
+          ></div>
+          <div className="relative flex-1">
+            <div id="map"></div>
+            {selectedLoc && (
+              <div className="absolute top-4 left-4 z-[1000] w-72 glass-panel p-4 rounded-xl shadow-xl border-t-4 border-[#c0392b]">
+                <button
+                  onClick={() => setSelectedLoc(null)}
+                  className="absolute top-2 right-2 text-gray-400 hover:text-gray-600"
+                >✕</button>
+                <h3 className="text-xl font-bold text-[#c0392b] mb-1">{selectedLoc.name}</h3>
+                <p className="text-xs text-gray-400 mb-3">{selectedLoc.ancientName} → {selectedLoc.modernName}</p>
+                <div className="space-y-3 text-sm">
+                  <div>
+                    <p className="text-gray-400 text-[10px] uppercase font-bold">公元纪年</p>
+                    <p>{selectedLoc.time || '未知'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400 text-[10px] uppercase font-bold">停留时间</p>
+                    <p>{selectedLoc.duration || '未知'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400 text-[10px] uppercase font-bold">事迹描述</p>
+                    <p className="leading-relaxed">{selectedLoc.event}</p>
+                  </div>
+                  <div className="bg-[#fdf6e3] p-2 rounded border border-dashed border-[#c8b496]">
+                    <p className="text-[#c0392b] text-[10px] uppercase font-bold">历史意义</p>
+                    <p className="italic text-xs">{selectedLoc.significance}</p>
+                  </div>
+                  {selectedLoc.quoteLines?.length ? (
+                    <div>
+                      <p className="text-gray-400 text-[10px] uppercase font-bold">名篇名句</p>
+                      <ul className="space-y-1">
+                        {selectedLoc.quoteLines.map((q, idx) => (
+                          <li key={idx} className="text-xs text-gray-700">{q}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : selectedLoc.works?.length ? (
+                    <div>
+                      <p className="text-gray-400 text-[10px] uppercase font-bold">名篇名句</p>
+                      <ul className="list-disc pl-4 space-y-1">
+                        {selectedLoc.works.map((w, idx) => (
+                          <li key={idx} className="text-xs text-gray-700">《{w}》</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="glass-panel p-4 rounded-xl text-center">
+            <p className="text-2xl mb-1">🗺️</p>
+            <p className="text-xl font-bold">{stats.distance} <span className="text-xs font-normal">km</span></p>
+            <p className="text-[10px] text-gray-400 uppercase">总行程估算</p>
+          </div>
+          <div className="glass-panel p-4 rounded-xl text-center">
+            <p className="text-2xl mb-1">⏱️</p>
+            <p className="text-xl font-bold">{stats.years} <span className="text-xs font-normal">年</span></p>
+            <p className="text-[10px] text-gray-400 uppercase">生命跨度</p>
+          </div>
+          <div className="glass-panel p-4 rounded-xl text-center">
+            <p className="text-2xl mb-1">📍</p>
+            <p className="text-xl font-bold">{stats.regions} <span className="text-xs font-normal">个</span></p>
+            <p className="text-[10px] text-gray-400 uppercase">覆盖地区</p>
+          </div>
+          <div className="glass-panel p-4 rounded-xl text-center">
+            <p className="text-2xl mb-1">🌟</p>
+            <p className="text-xl font-bold">{stats.events} <span className="text-xs font-normal">件</span></p>
+            <p className="text-[10px] text-gray-400 uppercase">重要事迹</p>
+          </div>
+        </div>
+      </div>
+      <footer className="text-center text-gray-400 text-[10px] py-8 border-t border-gray-200">
+        <p>build by cuicheng</p>
+      </footer>
+    </div>
+  );
+};
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+const downloadText = (filename, content, type) => {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+};
+const buildGeoJSON = (payload) => {
+  const person = payload.person || {};
+  const locations = payload.locations || [];
+  const features = locations.map(loc => ({
+    type: 'Feature',
+    geometry: { type: 'Point', coordinates: [loc.lng, loc.lat] },
+    properties: {
+      person: person.name || '',
+      name: loc.name || '',
+      type: loc.type || '',
+      time: loc.time || '',
+      modernName: loc.modernName || '',
+      ancientName: loc.ancientName || ''
+    }
+  }));
+  if (locations.length > 1) {
+    features.push({
+      type: 'Feature',
+      geometry: {
+        type: 'LineString',
+        coordinates: locations.map(loc => [loc.lng, loc.lat])
+      },
+      properties: { person: person.name || '', name: '轨迹' }
+    });
+  }
+  return { type: 'FeatureCollection', features };
+};
+const csvEscape = (value) => `"${String(value || '').replace(/"/g, '""')}"`;
+const buildCSV = (payload) => {
+  const person = payload.person || {};
+  const locations = payload.locations || [];
+  const header = ['person','name','lat','lng','type','time','modernName','ancientName'];
+  const rows = locations.map(loc => [
+    person.name || '',
+    loc.name || '',
+    loc.lat || '',
+    loc.lng || '',
+    loc.type || '',
+    loc.time || '',
+    loc.modernName || '',
+    loc.ancientName || ''
+  ]);
+  return [header.join(','), ...rows.map(r => r.map(csvEscape).join(','))].join('\n');
+};
+const setupExports = () => {
+  document.querySelectorAll('[data-export]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const type = btn.getAttribute('data-export');
+      const payload = window.__EXPORT_DATA__ || {};
+      if (type === 'geojson') {
+        const geo = buildGeoJSON(payload);
+        downloadText(`${payload.person?.name || 'map'}.geojson`, JSON.stringify(geo, null, 2), 'application/json');
+      } else if (type === 'csv') {
+        const csv = buildCSV(payload);
+        downloadText(`${payload.person?.name || 'map'}.csv`, csv, 'text/csv');
+      } else if (type === 'markdown') {
+        const md = payload.markdown || '';
+        if (!md) {
+          alert('Markdown 导出不可用');
+          return;
+        }
+        downloadText(`${payload.person?.name || 'map'}.md`, md, 'text/markdown');
+      } else if (type === 'share') {
+        const link = location.href;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(link);
+        } else {
+          prompt('复制链接', link);
+        }
+      }
+    });
+  });
+};
+setTimeout(setupExports, 0);
+</script>
+</body>
+</html>

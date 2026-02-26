@@ -6,22 +6,22 @@ import argparse
 import json
 import os
 import re
+import requests
+import urllib3
 from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
-from openai import OpenAI
 
+# 禁用 urllib3 的不安全请求警告
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def _project_root() -> str:
-    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
-
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 local_env = os.path.join(os.path.dirname(__file__), ".env")
 load_dotenv(dotenv_path=local_env)
-load_dotenv(dotenv_path=os.path.join(_project_root(), ".env"))
 
 _MAX_TEXT_LEN = 200
-
 
 def _validate_person(text: object) -> Optional[str]:
     if not isinstance(text, str):
@@ -33,13 +33,12 @@ def _validate_person(text: object) -> Optional[str]:
         return f"输入过长（最多 {_MAX_TEXT_LEN} 字符）"
     return None
 
-
 class StoryAgentLLM:
     """
     主要职责：
     - 统一管理模型 ID、API Key、Base URL 等基础配置
-    - 对兼容 OpenAI 接口的服务发起对话请求
-    - 默认使用流式（stream=True）方式逐块打印模型响应
+    - 调用 Qveris 的 Execute Tool 接口来执行大模型对话
+    - 兼容 OpenAI 格式的 messages 输入
     """
     def __init__(
         self,
@@ -51,23 +50,23 @@ class StoryAgentLLM:
     ):
         """
         初始化客户端。
-
         优先使用传入的参数；如果某个参数为 None，则会回退到环境变量：
         - LLM_MODEL_ID  -> 模型 ID
-        - LLM_API_KEY   -> API Key
-        - LLM_BASE_URL  -> 服务地址（兼容 OpenAI 协议的网关）
-        - LLM_TIMEOUT   -> 请求超时时间（秒），默认 60
+        - LLM_API_KEY   -> Qveris API Key
+        - LLM_BASE_URL  -> Qveris API Base URL (例如 https://qveris.ai/api/v1)
         """
         self.model = model or os.getenv("LLM_MODEL_ID")
         self.event_callback = event_callback
-        apiKey = apiKey or os.getenv("LLM_API_KEY")
-        baseUrl = baseUrl or os.getenv("LLM_BASE_URL")
-        timeout = timeout or int(os.getenv("LLM_TIMEOUT", "60"))
+        self.apiKey = apiKey or os.getenv("LLM_API_KEY")
+        self.baseUrl = baseUrl or os.getenv("LLM_BASE_URL")
+        # Increase default timeout to 300 seconds (5 minutes)
+        self.timeout = timeout or int(os.getenv("LLM_TIMEOUT", "300"))
+        
+        # Qveris Tool ID for ZHIPU GLM-4 chat completions
+        self.tool_id = "bigmodel.chat.completions.create.v4.bbf1f5ab"
 
-        if not self.model or not apiKey or not baseUrl:
+        if not self.model or not self.apiKey or not self.baseUrl:
             raise ValueError("模型ID、API密钥和服务地址必须被提供或在.env文件中定义。")
-
-        self.client = OpenAI(api_key=apiKey, base_url=baseUrl, timeout=timeout)
 
     def _emit(self, message: str) -> None:
         if not self.event_callback:
@@ -79,47 +78,83 @@ class StoryAgentLLM:
 
     def think(self, messages: List[Dict[str, str]], temperature: float = 0) -> Optional[str]:
         """
-        调用大语言模型进行“思考”，并以流式方式输出与返回完整结果。
-
-        参数：
-        - messages: 聊天历史，格式与 OpenAI ChatCompletion 接口一致
-        - temperature: 采样温度，数值越大回答越发散，默认 0（更稳定）
-
-        返回：
-        - 模型完整输出的字符串；如果发生错误则返回 None
+        通过 Qveris Execute Tool 接口调用大模型。
         """
-        print(f"🧠 正在调用 {self.model} 模型...")
-        self._emit(f"🧠 正在调用 {self.model} 模型...")
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=temperature,
-                stream=True,
-            )
-            print("✅ 大语言模型响应成功:")
-            collected: List[str] = []
-            for chunk in response:
-                if not getattr(chunk, "choices", None):
-                    continue
-                delta = chunk.choices[0].delta
-                content = getattr(delta, "content", None) or ""
-                if not content:
-                    continue
-                print(content, end="", flush=True)
-                collected.append(content)
-            print()
-            result = "".join(collected)
-            if result:
-                self._emit(f"✅ 大语言模型响应成功: {result}")
-            else:
-                self._emit("✅ 大语言模型响应成功")
-            return result
+        import time
+        max_retries = 3
+        
+        print(f"🧠 正在调用 {self.model} 模型 (via Qveris)...")
+        self._emit(f"🧠 正在调用 {self.model} 模型 (via Qveris)...")
 
-        except Exception as e:
-            print(f"❌ 调用LLM API时发生错误: {e}")
-            self._emit(f"❌ 调用LLM API时发生错误: {e}")
-            return None
+        url = f"{self.baseUrl.rstrip('/')}/tools/execute"
+        headers = {
+            "Authorization": f"Bearer {self.apiKey}",
+            "Content-Type": "application/json"
+        }
+        
+        # 构造传递给工具的参数
+        params_to_tool = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature,
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.apiKey}" 
+        }
+
+        payload = {
+            "tool_id": self.tool_id,
+            "parameters": params_to_tool
+        }
+
+        last_error = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                # Qveris execute tool 接口通常不支持流式返回，这里使用同步调用
+                # 禁用 SSL 验证以解决证书错误
+                resp = requests.post(url, headers=headers, json=payload, timeout=self.timeout, verify=False)
+                resp.raise_for_status()
+                
+                data = resp.json()
+                
+                if not data.get("success"):
+                    error_msg = data.get("error_message") or "Unknown error"
+                    raise RuntimeError(f"Qveris execution failed: {error_msg}")
+
+                tool_result = data.get("result", {}).get("data", {})
+                
+                # 解析 OpenAI 格式的响应
+                content = ""
+                if isinstance(tool_result, dict):
+                    choices = tool_result.get("choices", [])
+                    if choices and len(choices) > 0:
+                        message = choices[0].get("message", {})
+                        content = message.get("content", "")
+                
+                # 如果 result.data 直接是字符串（某些工具可能直接返回内容）
+                if not content and isinstance(tool_result, str):
+                    content = tool_result
+
+                if content:
+                    print(content)
+                    self._emit(f"✅ 大语言模型响应成功")
+                    return content
+                else:
+                    print("⚠️ 模型返回内容为空")
+                    # 空内容不视为错误，直接返回空字符串
+                    return ""
+
+            except Exception as e:
+                last_error = e
+                print(f"⚠️ 第 {attempt}/{max_retries} 次尝试失败: {e}")
+                if attempt < max_retries:
+                    wait_time = 2 * attempt  # 简单的指数退避
+                    print(f"⏳ {wait_time} 秒后重试...")
+                    time.sleep(wait_time)
+                else:
+                    print(f"❌ 调用LLM API最终失败: {e}")
+                    self._emit(f"❌ 调用LLM API最终失败: {e}")
+        
+        return None
 
 
 def _read_prompt(relpath: str) -> str:
@@ -127,7 +162,14 @@ def _read_prompt(relpath: str) -> str:
     读取 docs/ 目录下的提示词文件内容。
     """
     root = os.path.dirname(os.path.abspath(__file__))
-    with open(os.path.join(root, "..", "docs", relpath), "r", encoding="utf-8") as f:
+    # script/../docs -> storymap/docs
+    prompt_path = os.path.join(root, "..", "docs", relpath)
+    if not os.path.exists(prompt_path):
+         # Fallback for when running from project root
+         root_proj = _project_root()
+         prompt_path = os.path.join(root_proj, "storymap", "docs", relpath)
+    
+    with open(prompt_path, "r", encoding="utf-8") as f:
         return f.read()
 
 
@@ -171,17 +213,16 @@ def extract_historical_figures(llm: "StoryAgentLLM", text: str) -> List[str]:
 
 def save_markdown(person: str, content: str) -> str:
     """
-    将人物生平 Markdown 写入 story/ 目录并返回文件路径。
+    保存 Markdown 到 examples/story/ 目录，若存在则覆盖。
     """
     root = _project_root()
-    folder = os.path.join(root, "story")
-    os.makedirs(folder, exist_ok=True)
-    safe = re.sub(r'[\\\\/:*?"<>|]', "_", str(person or "")).strip()
-    if not safe:
-        safe = "未命名人物"
-    path = os.path.join(folder, f"{safe}.md")
+    base = os.path.join(root, "storymap", "examples", "story")
+    os.makedirs(base, exist_ok=True)
+    filename = f"{person}.md"
+    path = os.path.join(base, filename)
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
+    print(f"✅ 人物生平已保存: {path}")
     return path
 
 

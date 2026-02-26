@@ -42,12 +42,11 @@ from story_agents import (
 
 
 def _project_root() -> str:
-    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 
 local_env = os.path.join(os.path.dirname(__file__), ".env")
 load_dotenv(dotenv_path=local_env)
-load_dotenv(dotenv_path=os.path.join(_project_root(), ".env"))
 
 _LOGGER = logging.getLogger("story_map")
 if not _LOGGER.handlers:
@@ -982,15 +981,46 @@ def render_html(title: str, points: List[Dict[str, object]], md: str = "") -> st
 
 def save_html(person: str, content: str) -> str:
     """
-    将 HTML 内容写入 story_map/目录，文件名取人物名。
+    保存 HTML 到 examples/story_map/ 目录，若存在则覆盖。
     """
     root = _project_root()
-    folder = os.path.join(root, "story_map")
-    os.makedirs(folder, exist_ok=True)
-    safe = re.sub(r'[\\\\/:*?"<>|]', "_", str(person or "")).strip() or "map"
-    path = os.path.join(folder, f"{safe}.html")
+    base = os.path.join(root, "storymap", "examples", "story_map")
+    os.makedirs(base, exist_ok=True)
+    filename = f"{person}.html"
+    path = os.path.join(base, filename)
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
+    print(f"✅ 交互式地图已保存: {path}")
+    return path
+
+
+def save_geojson(person: str, geojson: Dict) -> str:
+    """
+    保存 GeoJSON 到 examples/story_map/ 目录。
+    """
+    root = _project_root()
+    base = os.path.join(root, "storymap", "examples", "story_map")
+    os.makedirs(base, exist_ok=True)
+    filename = f"{person}.geojson"
+    path = os.path.join(base, filename)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(geojson, f, ensure_ascii=False, indent=2)
+    print(f"✅ GeoJSON 已保存: {path}")
+    return path
+
+
+def save_csv(person: str, csv_text: str) -> str:
+    """
+    保存 CSV 到 examples/story_map/ 目录。
+    """
+    root = _project_root()
+    base = os.path.join(root, "storymap", "examples", "story_map")
+    os.makedirs(base, exist_ok=True)
+    filename = f"{person}.csv"
+    path = os.path.join(base, filename)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(csv_text)
+    print(f"✅ CSV 已保存: {path}")
     return path
 
 
@@ -1667,6 +1697,42 @@ class StoryMapServerHandler(BaseHTTPRequestHandler):
             self._set_headers(403, len(payload), None)
             self.wfile.write(payload)
             return
+            
+        # Add proxy for LLM calls from frontend
+        if self.path == "/api/ai/proxy":
+            length = int(self.headers.get("Content-Length", "0") or "0")
+            body = self.rfile.read(length).decode("utf-8", errors="ignore") if length else ""
+            if not body:
+                payload = json.dumps({"ok": False, "error": "body required"}, ensure_ascii=False).encode("utf-8")
+                self._set_headers(400, len(payload), allowed)
+                self.wfile.write(payload)
+                return
+            
+            try:
+                data = json.loads(body)
+                messages = data.get("messages", [])
+                temperature = data.get("temperature", 0.1)
+                
+                client = _get_llm_client()
+                content = client.think(messages, temperature=temperature)
+                
+                # Ensure content is valid string and clean surrogate pairs if any
+                if content:
+                    # First try standard replacement
+                    content = content.encode("utf-8", "replace").decode("utf-8", "replace")
+                
+                resp_data = {"choices": [{"message": {"content": content or ""}}]}
+                # Use ensure_ascii=True to avoid "illegal UTF-16 sequence" errors with surrogates
+                payload = json.dumps(resp_data, ensure_ascii=True).encode("utf-8")
+                self._set_headers(200, len(payload), allowed)
+                self.wfile.write(payload)
+            except Exception as e:
+                _LOGGER.error("llm_proxy_failed error=%s", e)
+                payload = json.dumps({"error": str(e)}, ensure_ascii=True).encode("utf-8")
+                self._set_headers(500, len(payload), allowed)
+                self.wfile.write(payload)
+            return
+
         if self.path != "/generate":
             payload = json.dumps({"ok": False, "error": "not found"}, ensure_ascii=False).encode("utf-8")
             self._set_headers(404, len(payload), allowed)
